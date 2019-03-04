@@ -1,8 +1,13 @@
+import sys
+import os
 import logging
 from datetime import datetime
 from time import gmtime
 from subprocess import check_output
 
+from obst.config import CONFIG
+
+TIME_FORMAT = CONFIG['TIME_FORMAT']
 RUN_ID = datetime.strftime(datetime.utcnow(), '%Y%m%d%H%M%S')
 
 def get_git_dir_hash(gitdir):
@@ -16,6 +21,16 @@ def get_git_dir_hash(gitdir):
 def generate_run_id(gitdir, run_func):
     commit_hash = get_git_dir_hash(gitdir)
     return '{}-{}-{}'.format(RUN_ID, commit_hash, run_func)
+
+
+class InjectRunID(logging.Filter):
+    def __init__(self, run_id):
+        self.run_id = run_id
+        super().__init__()
+
+    def filter(self, record):
+        record.run_id = self.run_id
+        return True
 
 
 def prepare_logging(level, run_id, loglevel):
