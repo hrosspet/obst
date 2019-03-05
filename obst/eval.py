@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 class Eval():
     def __init__(self, world, agent, training_steps, test_steps):
         self.world = world
@@ -22,12 +26,16 @@ class Eval():
             # get agent's action based on the world observation
             action = self.agent.behave(observation)
 
+            logger.debug('step %d: action: %d', i, action)
+
             # get world's reaction
             observation, reward, done, _ = self.world.step(action)
+            logger.debug('step %d: observation: %s, reward: %.2f, done: %d', i, observation, reward, done)
 
             score += reward
 
             if done:
+                logger.debug('reset')
                 self.reset()
 
         return score
