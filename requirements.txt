@@ -1,2 +1,4 @@
 fire
 numpy
+tensorflow
+keras

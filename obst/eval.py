@@ -12,12 +12,12 @@ class Eval():
         self.training_score = 0
         self.test_score = 0
 
-    def reset(self):
-        self.world.reset()
+    def reset(self, test):
+        self.world.reset(test)
         self.agent.reset()
 
-    def eval(self, n_steps):
-        self.reset()
+    def eval(self, n_steps, test=False):
+        self.reset(test)
 
         score = 0
 
@@ -45,5 +45,7 @@ class Eval():
         return self.training_score / self.training_steps
 
     def test(self):
-        self.test_score = self.eval(self.test_steps)
+        self.test_score = self.eval(self.test_steps, test=True)
+        logger.info('test results:')
+        logger.info(self.agent.eval())
         return self.test_score / self.test_steps

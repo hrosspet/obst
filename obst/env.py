@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 class State():
     def __init__(self, observation, reward=0, done=False, info=""):
@@ -33,7 +36,7 @@ class World(ABC):
 class OneHot1DWorld(World):
     def __init__(self, size):
         super().__init__()
-        print('size', size)
+        logger.debug('size: %d', size)
 
         # create state space with observations
         for i in range(size):
@@ -54,8 +57,12 @@ class OneHot1DWorld(World):
         # init at first state
         self.state = self.states[0]
 
-    def reset(self):
-        self.__init__(len(self.states))
+    def reset(self, test=False):
+        if test:
+            # self.state = np.random.choice(self.states)
+            self.state = self.states[-1]
+        else:
+            self.state = self.states[0]
 
 class OneHot1DCyclicWorld(World):
     def __init__(self, size):
