@@ -1,5 +1,5 @@
 from obst.env import OneHot1DWorld
-from obst.agent import RandomBufferedKerasAgent
+from obst.agent import RandomBufferedKerasAgent, WorldModelBufferedKerasAgent
 
 CONFIG = {
     'TIME_FORMAT': '%Y-%m-%d %H:%M:%S',
@@ -10,7 +10,8 @@ CONFIG = {
         }
     },
     'AGENT': {
-        'CONSTRUCTOR': RandomBufferedKerasAgent,
+        # 'CONSTRUCTOR': RandomBufferedKerasAgent,
+        'CONSTRUCTOR': WorldModelBufferedKerasAgent,
         'PARAMS': {
             'buffer_size': 10000,
             'training_period': 10000,

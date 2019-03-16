@@ -15,6 +15,7 @@ def main(verbosity='INFO', loglevel='INFO', gitdir='.git'):
     evaluation = Eval(world, agent, training_steps=TRAINING_STEPS, test_steps=TEST_STEPS)
 
     run_name = '_'.join([world.__class__.__name__, agent.__class__.__name__])
+    print('\nWorld:\t{}\nAgent:\t{}\n'.format(world.__class__.__name__, agent.__class__.__name__))
     ####
 
     global RUN_ID

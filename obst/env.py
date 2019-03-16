@@ -42,7 +42,7 @@ class OneHot1DWorld(World):
         for i in range(size):
             obs = np.zeros(size)
             obs[i] = 1
-            self.states.append(State(obs))
+            self.states.append(State(obs))  # Create a new state from the given observatrion and append it to the list
 
         # add transitions between them via action 0 (next) and 1 (previous)
         for i in range(size):
