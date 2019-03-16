@@ -19,7 +19,7 @@ CONFIG = {
             'input_dim': 1000,
             'batch_size': 32,
             'steps_per_epoch': 1000,
-            'epochs': 2,
+            'epochs': 5,
             'lr': 1e-3,
             'n_layers': 2
         }

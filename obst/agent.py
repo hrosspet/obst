@@ -98,7 +98,6 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
     def get_data_generator(self):
         # make a training batch: batch_size/2 x pair of similar inputs and batch_size/2 x pair of dissimilar inputs
         while True:
-            # import pdb; pdb.set_trace()
             half_batch = self.batch_size // 2
             idx = np.random.randint(0, len(self.buffer) - 1, 3 * half_batch)
             similar_idx = idx[:half_batch]
@@ -175,7 +174,7 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
         inputs  = Input(shape=(input_dim + 1,))
         outputs = inputs
         outputs = Dense(input_dim, activation='relu')(outputs)
-        outputs = Dense(input_dim, activation='relu')(outputs)
+        outputs = Dense(input_dim, activation='softmax')(outputs)
 
         model = Model(inputs=inputs, outputs=outputs)
         model.compile(loss='mse',
@@ -212,4 +211,6 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
         #
 
     def eval(self):
-        return self.model.evaluate(*self.get_data_generator(), batch_size=len(self.buffer))
+        data_x, data_y = next(self.get_data_generator())
+        import pdb; pdb.set_trace()
+        return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
