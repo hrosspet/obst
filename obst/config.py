@@ -10,8 +10,8 @@ CONFIG = {
         }
     },
     'AGENT': {
-        # 'CONSTRUCTOR': RandomBufferedKerasAgent,
-        'CONSTRUCTOR': WorldModelBufferedKerasAgent,
+        'CONSTRUCTOR': RandomBufferedKerasAgent,
+        # 'CONSTRUCTOR': WorldModelBufferedKerasAgent,
         'PARAMS': {
             'buffer_size': 10000,
             'training_period': 10000,
@@ -19,7 +19,7 @@ CONFIG = {
             'input_dim': 1000,
             'batch_size': 32,
             'steps_per_epoch': 1000,
-            'epochs': 5,
+            'epochs': 6,
             'lr': 1e-3,
             'n_layers': 2
         }

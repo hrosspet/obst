@@ -79,14 +79,16 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
         self.model = self.create_model(input_dim, n_layers, lr)
 
     def create_model(self, input_dim, n_layers=1, learning_rate=1e-3):
-        inputs = Input(shape=(input_dim * 2,))
+        inputs = Input(shape=(input_dim,))
         outputs = inputs
 
         OUTPUT_DIM = 1
 
-        for i in range(n_layers):
-            outputs = Dropout(0.5)(outputs)
-            outputs = Dense(OUTPUT_DIM, activation='relu')(outputs)
+        # for i in range(n_layers):
+        #     outputs = Dropout(0.5)(outputs)
+        outputs = Dense(input_dim, activation='relu')(outputs)
+        #
+        outputs = Dense(OUTPUT_DIM, activation='relu')(outputs)
 
         model = Model(inputs=inputs, outputs=outputs)
         model.compile(loss='mse',
@@ -105,18 +107,16 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
             dissimilar_idx_1 = idx[half_batch*2:]
             data = np.array([observation for observation, decision in self.buffer])
 
-            data_x = np.zeros((self.batch_size, self.input_dim * 2))
+            data_x = np.zeros((self.batch_size, self.input_dim))
             data_y = np.zeros((self.batch_size, 1))
 
             # fill in similar samples
-            data_x[:half_batch, :self.input_dim] = data[similar_idx, :]
-            data_x[:half_batch, self.input_dim:] = data[similar_idx+1, :]
+            data_x[:half_batch] = data[similar_idx, :] - data[similar_idx+1, :]
 
             data_y[:half_batch] = 1
 
             # fill in dissimilar samples
-            data_x[half_batch:, :self.input_dim] = data[dissimilar_idx_0, :]
-            data_x[half_batch:, self.input_dim:] = data[dissimilar_idx_1, :]
+            data_x[half_batch:] = data[dissimilar_idx_0, :] - data[dissimilar_idx_1, :]
 
             yield data_x, data_y
 
@@ -129,34 +129,10 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
         )
         #
 
-    def get_data_test(self):
-        # make a training batch: batch_size/2 x pair of similar inputs and batch_size/2 x pair of dissimilar inputs
-        data = np.array([observation for observation, decision in self.buffer])
-        half_batch = data.shape[0] // 2
-
-        similar_idx = np.arange(0, data.shape[0], 2)
-
-        idx = np.random.randint(0, data.shape[0], data.shape[0])
-        dissimilar_idx_0 = idx[:half_batch]
-        dissimilar_idx_1 = idx[half_batch:]
-
-        data_x = np.zeros((data.shape[0], self.input_dim * 2))
-        data_y = np.zeros((data.shape[0], 1))
-
-        # fill in similar samples
-        data_x[:half_batch, :self.input_dim] = data[similar_idx, :]
-        data_x[:half_batch, self.input_dim:] = data[similar_idx+1, :]
-
-        data_y[:half_batch] = 1
-
-        # fill in dissimilar samples
-        data_x[half_batch:, :self.input_dim] = data[dissimilar_idx_0, :]
-        data_x[half_batch:, self.input_dim:] = data[dissimilar_idx_1, :]
-
-        return data_x, data_y
-
     def eval(self):
-        return self.model.evaluate(*self.get_data_test(), batch_size=len(self.buffer))
+        import pdb; pdb.set_trace()
+        data_x, data_y = next(self.get_data_generator())
+        return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
 
 class WorldModelBufferedKerasAgent(RandomBufferedAgent):
     """This agent learns to predict the observation that will be caused by an action."""
