@@ -10,8 +10,8 @@ CONFIG = {
         }
     },
     'AGENT': {
-        'CONSTRUCTOR': RandomBufferedKerasAgent,
-        # 'CONSTRUCTOR': WorldModelBufferedKerasAgent,
+        # 'CONSTRUCTOR': RandomBufferedKerasAgent,
+        'CONSTRUCTOR': WorldModelBufferedKerasAgent,
         'PARAMS': {
             'buffer_size': 10000,
             'training_period': 10000,

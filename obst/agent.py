@@ -161,14 +161,14 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
 
     def get_data_generator(self):
         while True:
-            start_idx = np.random.randint(0, len(self.buffer) - self.batch_size - 1)
+            start_idxs = [np.random.randint(0, len(self.buffer)  - 1) for _ in range(self.batch_size)]
 
             data_x = np.zeros((self.batch_size, self.input_dim + 1))
             data_y = np.zeros((self.batch_size, self.input_dim))
 
             for i in range(self.batch_size):
-                start_st, action = self.buffer[start_idx + i]
-                end_st, _ = self.buffer[start_idx + i + 1]      # end state/observation
+                start_st, action = self.buffer[start_idxs[i]]
+                end_st, _ = self.buffer[start_idxs[i] + 1]      # end state/observation
 
                 data_x[i][:self.input_dim] = start_st
                 data_x[i][-1] = action
