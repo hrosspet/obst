@@ -22,9 +22,11 @@ class Eval():
         score = 0
 
         observation = self.world.state.observation
+        reward      = self.world.state.reward
+
         for i in range(n_steps):
             # get agent's action based on the world observation
-            action = self.agent.behave(observation)
+            action = self.agent.behave(observation, reward)
 
             logger.debug('step %d: action: %d', i, action)
 

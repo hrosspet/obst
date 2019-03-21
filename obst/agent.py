@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
+import random
 import logging
 
 logger = logging.getLogger(__name__)
@@ -10,7 +11,7 @@ class AbstractAgent(ABC):
         pass
 
     @abstractmethod
-    def behave(self, observation):
+    def behave(self, observation, reward):
         pass
 
     @abstractmethod
@@ -33,7 +34,8 @@ class BufferedAgent(AbstractAgent):
         pass
 
     @abstractmethod
-    def decide(self, observation):
+    def decide(self, observation, reward):
+        """Decide on an action based on an observation and reward of the current state"""
         pass
 
     def reset(self):
@@ -46,27 +48,27 @@ class BufferedAgent(AbstractAgent):
         if self.step % self.training_period == 0:
             self.train()
 
-    def record(self, observation, decision):
-        self.buffer.append((observation, decision))     # Append a tuple of the observation, and the decision that was made on it
+    def record(self, observation, reward, decision):
+        self.buffer.append((observation, reward, decision))     # Append a tuple of the observation, the reward of the observed state, and the decision that was made on it
 
         if len(self.buffer) > self.buffer_size:
             self.buffer.pop(0)
 
-    def behave(self, observation):
+    def behave(self, observation, reward):
         self.observe(observation)
-        decision = self.decide(observation)
+        decision = self.decide(observation, reward)
 
-        self.record(observation, decision)
+        self.record(observation, reward, decision)
 
         return decision
 
 class RandomBufferedAgent(BufferedAgent):
-    def decide(self, observation):
+    def decide(self, observation, reward):
         return np.random.randint(self.n_actions)    # This just learns the effect of random movements and does not make any computed decissions
 
 
 from keras.models import Model
-from keras.layers import Input, Dense, Dropout
+from keras.layers import Input, Dense, Dropout, LSTM
 
 class RandomBufferedKerasAgent(RandomBufferedAgent):
     def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, n_layers=None, lr=None):
@@ -105,7 +107,7 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
             similar_idx = idx[:half_batch]
             dissimilar_idx_0 = idx[half_batch:half_batch*2]
             dissimilar_idx_1 = idx[half_batch*2:]
-            data = np.array([observation for observation, decision in self.buffer])
+            data = np.array([observation for observation, reward, decision in self.buffer])
 
             data_x = np.zeros((self.batch_size, self.input_dim))
             data_y = np.zeros((self.batch_size, 1))
@@ -150,7 +152,7 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
         inputs  = Input(shape=(input_dim + 1,))
         outputs = inputs
         outputs = Dense(input_dim, activation='relu')(outputs)
-        outputs = Dense(input_dim, activation='softmax')(outputs)
+        outputs = Dense(input_dim, activation='relu')(outputs)
 
         model = Model(inputs=inputs, outputs=outputs)
         model.compile(loss='mse',
@@ -167,8 +169,8 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
             data_y = np.zeros((self.batch_size, self.input_dim))
 
             for i in range(self.batch_size):
-                start_st, action = self.buffer[start_idxs[i]]
-                end_st, _ = self.buffer[start_idxs[i] + 1]      # end state/observation
+                start_st, _, action = self.buffer[start_idxs[i]]
+                end_st, _, _ = self.buffer[start_idxs[i] + 1]      # end state/observation
 
                 data_x[i][:self.input_dim] = start_st
                 data_x[i][-1] = action
@@ -190,3 +192,105 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
         data_x, data_y = next(self.get_data_generator())
         import pdb; pdb.set_trace()
         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
+
+class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
+    """This agent tries to learn what observation has what reward."""
+
+    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, n_layers=None, lr=None):
+        super().__init__(buffer_size, training_period, n_actions)
+
+        self.input_dim = input_dim
+        self.batch_size = batch_size
+        self.steps_per_epoch = steps_per_epoch
+        self.epochs = epochs
+        self.model = self.create_model(input_dim, lr)
+
+    def create_model(self, input_dim, learning_rate=1e-3):
+        inputs  = Input(shape=(input_dim,))
+        outputs = inputs
+        outputs = Dense(input_dim, activation='relu')(outputs)
+        outputs = Dense(1, activation='relu')(outputs)
+
+        model = Model(inputs=inputs, outputs=outputs)
+        model.compile(loss='mse',
+                  optimizer='rmsprop',
+                  metrics=['acc'])
+        model.summary()
+        return model
+
+    def get_data_generator(self):
+        while True:
+            data_x = np.zeros((self.batch_size, self.input_dim))
+            data_y = np.zeros((self.batch_size, 1))
+
+            for i in range(self.batch_size):
+                observation, reward, _ = random.choice(self.buffer)
+
+                data_x[i] = observation
+                data_y[i] = reward
+
+            yield data_x, data_y
+
+    def train(self):
+        logger.debug('Agent training...')
+        self.model.fit_generator(
+            self.get_data_generator(),
+            steps_per_epoch=self.steps_per_epoch,
+            epochs=self.epochs
+        )
+        #
+
+    def eval(self):
+        data_x, data_y = next(self.get_data_generator())
+        import pdb; pdb.set_trace()
+        return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
+
+# class RewardGuideBufferedKerasAgent(BufferedAgent):
+#     """Predict the reward that each of the next possible steps would give."""
+#
+#     def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, n_layers=None, lr=None):
+#         super().__init__(buffer_size, training_period, n_actions)
+#
+#         self.input_dim = input_dim
+#         self.batch_size = batch_size
+#         self.steps_per_epoch = steps_per_epoch
+#         self.epochs = epochs
+#         self.model = self.create_model(input_dim, lr)
+#
+#     def create_model(self, input_dim, learning_rate=1e-3):
+#         inputs  = Input(shape=(input_dim,))
+#         outputs = inputs
+#
+#         outputs = LSTM(input_dim)(outputs)
+#         outputs = Dense(input_dim, activation='relu')(outputs)
+#         outputs = Dense(self.n_actions, activation='softmax')(outputs)
+#
+#         model = Model(inputs=inputs, outputs=outputs)
+#         model.compile(loss='mse',
+#                   optimizer='rmsprop',
+#                   metrics=['acc'])
+#         model.summary()
+#         return model
+#
+#     def get_data_generator(self):       # We don't have access to the neigbouring states so we can't really train it.
+#         while True:
+#             np.array([observation for observation, reward, decision in self.buffer])
+#
+#             yield data_x, data_y
+#
+#     def train(self):
+#         logger.debug('Agent training...')
+#         self.model.fit_generator(
+#             self.get_data_generator(),
+#             steps_per_epoch=self.steps_per_epoch,
+#             epochs=self.epochs
+#         )
+#         #
+#
+#     def decide(self, observation):
+#         return np.argmax(self.model.predict(np.array([observation])))
+#
+#     def eval(self):
+#         data_x, data_y = next(self.get_data_generator())
+#         import pdb; pdb.set_trace()
+#         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
