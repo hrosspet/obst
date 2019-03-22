@@ -64,7 +64,8 @@ class BufferedAgent(AbstractAgent):
 
 class RandomBufferedAgent(BufferedAgent):
     def decide(self, observation, reward):
-        return np.random.randint(self.n_actions)    # This just learns the effect of random movements and does not make any computed decissions
+        # We have to make the movement biased towards one side to prevent the agent from going back and forth in a small area
+        return (0 if random.randint(0,6) <= 3  else 1)  # This just learns the effect of random movements and does not make any computed decissions
 
 
 from keras.models import Model
@@ -99,7 +100,7 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
         model.summary()
         return model
 
-    def get_data_generator(self):
+    def get_train_data_generator(self):
         # make a training batch: batch_size/2 x pair of similar inputs and batch_size/2 x pair of dissimilar inputs
         while True:
             half_batch = self.batch_size // 2
@@ -125,7 +126,7 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
     def train(self):
         logger.debug('Agent training...')
         self.model.fit_generator(
-            self.get_data_generator(),
+            self.get_train_data_generator(),
             steps_per_epoch=self.steps_per_epoch,
             epochs=self.epochs
         )
@@ -133,7 +134,7 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
 
     def eval(self):
         import pdb; pdb.set_trace()
-        data_x, data_y = next(self.get_data_generator())
+        data_x, data_y = next(self.get_train_data_generator())
         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
 
 class WorldModelBufferedKerasAgent(RandomBufferedAgent):
@@ -161,7 +162,7 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
         model.summary()
         return model
 
-    def get_data_generator(self):
+    def get_train_data_generator(self):
         while True:
             start_idxs = [np.random.randint(0, len(self.buffer)  - 1) for _ in range(self.batch_size)]
 
@@ -182,14 +183,14 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
     def train(self):
         logger.debug('Agent training...')
         self.model.fit_generator(
-            self.get_data_generator(),
+            self.get_train_data_generator(),
             steps_per_epoch=self.steps_per_epoch,
             epochs=self.epochs
         )
         #
 
     def eval(self):
-        data_x, data_y = next(self.get_data_generator())
+        data_x, data_y = next(self.get_train_data_generator())
         import pdb; pdb.set_trace()
         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
 
@@ -209,6 +210,7 @@ class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
         inputs  = Input(shape=(input_dim,))
         outputs = inputs
         outputs = Dense(input_dim, activation='relu')(outputs)
+        # outputs = Dropout(0.5)(outputs)
         outputs = Dense(1, activation='relu')(outputs)
 
         model = Model(inputs=inputs, outputs=outputs)
@@ -218,7 +220,7 @@ class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
         model.summary()
         return model
 
-    def get_data_generator(self):
+    def get_train_data_generator(self):
         while True:
             data_x = np.zeros((self.batch_size, self.input_dim))
             data_y = np.zeros((self.batch_size, 1))
@@ -234,16 +236,17 @@ class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
     def train(self):
         logger.debug('Agent training...')
         self.model.fit_generator(
-            self.get_data_generator(),
+            self.get_train_data_generator(),
             steps_per_epoch=self.steps_per_epoch,
             epochs=self.epochs
         )
         #
 
     def eval(self):
-        data_x, data_y = next(self.get_data_generator())
+        data_x, data_y = next(self.get_train_data_generator())
         import pdb; pdb.set_trace()
         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
+
 
 # class RewardGuideBufferedKerasAgent(BufferedAgent):
 #     """Predict the reward that each of the next possible steps would give."""
@@ -272,7 +275,7 @@ class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
 #         model.summary()
 #         return model
 #
-#     def get_data_generator(self):       # We don't have access to the neigbouring states so we can't really train it.
+#     def get_train_data_generator(self):       # We don't have access to the neigbouring states so we can't really train it.
 #         while True:
 #             np.array([observation for observation, reward, decision in self.buffer])
 #
@@ -281,7 +284,7 @@ class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
 #     def train(self):
 #         logger.debug('Agent training...')
 #         self.model.fit_generator(
-#             self.get_data_generator(),
+#             self.get_train_data_generator(),
 #             steps_per_epoch=self.steps_per_epoch,
 #             epochs=self.epochs
 #         )
@@ -291,6 +294,6 @@ class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
 #         return np.argmax(self.model.predict(np.array([observation])))
 #
 #     def eval(self):
-#         data_x, data_y = next(self.get_data_generator())
+#         data_x, data_y = next(self.get_train_data_generator())
 #         import pdb; pdb.set_trace()
 #         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))

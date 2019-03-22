@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
-import logging
 import random
+import logging
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +33,6 @@ class World(ABC):
     def reset(self):
         self.__init__()
 
-REWARD_IDX = 763
-
 class OneHot1DWorld(World):
     def __init__(self, size):
         super().__init__()
@@ -57,11 +55,11 @@ class OneHot1DWorld(World):
                 self.states[i].neighborhood[1] = self.states[i - 1]
 
         # Set reward for final (exit) state
-        self.states[REWARD_IDX].reward = 1
+        for f in range(size):
+            self.states[f].reward = f % 2
 
         # init at first state
-        # self.state = self.states[0]
-        self.reset()
+        self.state = self.states[0]
 
     def reset(self, test=False):
         if test:
@@ -70,11 +68,12 @@ class OneHot1DWorld(World):
             self.state = self.states[0]
             # self.state = random.choice(self.states)
 
-class OneHot1DCyclicWorld(World):
+class OneHot1DCyclicWorld(OneHot1DWorld):
     def __init__(self, size):
-        super().__init__()
+        super().__init__(size)
 
-        # TODO implement the init here
+        self.states[0].neighborhood[1] = self.states[-1]
+        self.states[-1].neighborhood[0] = self.states[0]
 
 class OneHot2DWorld(World):
     # TODO design intuitive way how to provide world_definition

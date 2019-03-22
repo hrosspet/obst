@@ -1,10 +1,10 @@
-from obst.env import OneHot1DWorld
+from obst.env import OneHot1DWorld, OneHot1DCyclicWorld
 from obst.agent import RandomBufferedKerasAgent, WorldModelBufferedKerasAgent, RewardPredictBufferedKerasAgent
 
 CONFIG = {
     'TIME_FORMAT': '%Y-%m-%d %H:%M:%S',
     'WORLD': {
-        'CONSTRUCTOR': OneHot1DWorld,
+        'CONSTRUCTOR': OneHot1DCyclicWorld,
         'PARAMS': {
             'size': 1000,
         }
@@ -20,7 +20,7 @@ CONFIG = {
             'input_dim': 1000,
             'batch_size': 32,
             'steps_per_epoch': 1000,
-            'epochs': 6,
+            'epochs': 2,
             'lr': 1e-3,
             'n_layers': 2
         }
