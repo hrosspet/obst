@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 import random
+import math
 import logging
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,8 @@ class World(ABC):
     def reset(self):
         self.__init__()
 
+REWARD_IDX = 763
+
 class OneHot1DWorld(World):
     def __init__(self, size):
         super().__init__()
@@ -55,8 +58,7 @@ class OneHot1DWorld(World):
                 self.states[i].neighborhood[1] = self.states[i - 1]
 
         # Set reward for final (exit) state
-        for f in range(size):
-            self.states[f].reward = f % 2
+        self.states[REWARD_IDX].reward = 1
 
         # init at first state
         self.state = self.states[0]
@@ -75,9 +77,35 @@ class OneHot1DCyclicWorld(OneHot1DWorld):
         self.states[0].neighborhood[1] = self.states[-1]
         self.states[-1].neighborhood[0] = self.states[0]
 
-class OneHot2DWorld(World):
-    # TODO design intuitive way how to provide world_definition
-    def __init__(self, world_definiton):
+class My2DWorld(World):
+    def __init__(self, width, height):
         super().__init__()
 
-        # TODO implement the init here
+        self.width = width
+        self.height = height
+
+        self.agt_x = width  // 2
+        self.agt_y = height // 2
+
+    def step(self, action):
+        # Respond to action
+        if action == 0:
+            if self.agt_y > 0:
+                self.agt_y -= 1
+        if action == 1:
+            if self.agt_x < self.width:
+                self.agt_x += 1
+        if action == 2:
+            if self.agt_y < self.height:
+                self.agt_y += 1
+        if action == 3:
+            if self.agt_x > 0:
+                self.agt_x -= 1
+
+        # An arbitary set of numbers that changes for each state
+        obs = (math.log(self.agt_x+1), math.log(self.agt_x, self.agt_y+2), math.log(self.width - self.agt_x+1, 10), math.log(self.height - self.agt_y+1), math.log(abs(self.agt_y - self.agt_x)+1))
+        return obs, 0, False, None
+
+    def reset(self, test):
+        self.agt_x = self.width  // 2
+        self.agt_y = self.height // 2

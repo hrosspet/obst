@@ -39,7 +39,7 @@ class BufferedAgent(AbstractAgent):
         pass
 
     def reset(self):
-        self.buffer = []
+        self.buffer.clear()   # = []    # We have to use clear() so that
         self.step = 0
 
     def observe(self, observation):
@@ -55,7 +55,7 @@ class BufferedAgent(AbstractAgent):
             self.buffer.pop(0)
 
     def behave(self, observation, reward):
-        self.observe(observation)
+        self.observe(observation)   # trains every 10000 steps
         decision = self.decide(observation, reward)
 
         self.record(observation, reward, decision)
@@ -72,25 +72,22 @@ from keras.models import Model
 from keras.layers import Input, Dense, Dropout, LSTM
 
 class RandomBufferedKerasAgent(RandomBufferedAgent):
-    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, n_layers=None, lr=None):
+    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=None):
         super().__init__(buffer_size, training_period, n_actions)
 
         self.input_dim = input_dim
         self.batch_size = batch_size
         self.steps_per_epoch = steps_per_epoch
         self.epochs = epochs
-        self.model = self.create_model(input_dim, n_layers, lr)
+        self.model = self.create_model(input_dim, lr)
 
-    def create_model(self, input_dim, n_layers=1, learning_rate=1e-3):
+    def create_model(self, input_dim, learning_rate=1e-3):
         inputs = Input(shape=(input_dim,))
         outputs = inputs
 
         OUTPUT_DIM = 1
 
-        # for i in range(n_layers):
-        #     outputs = Dropout(0.5)(outputs)
         outputs = Dense(input_dim, activation='relu')(outputs)
-        #
         outputs = Dense(OUTPUT_DIM, activation='relu')(outputs)
 
         model = Model(inputs=inputs, outputs=outputs)
@@ -124,7 +121,7 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
             yield data_x, data_y
 
     def train(self):
-        logger.debug('Agent training...')
+        logger.debug('Training {}...'.format(self.__class__.__name__))
         self.model.fit_generator(
             self.get_train_data_generator(),
             steps_per_epoch=self.steps_per_epoch,
@@ -140,7 +137,7 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
 class WorldModelBufferedKerasAgent(RandomBufferedAgent):
     """This agent learns to predict the observation that will be caused by an action."""
 
-    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, n_layers=None, lr=None):
+    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=None):
         super().__init__(buffer_size, training_period, n_actions)
 
         self.input_dim = input_dim
@@ -181,7 +178,7 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
             yield data_x, data_y
 
     def train(self):
-        logger.debug('Agent training...')
+        logger.debug('Training {}...'.format(self.__class__.__name__))
         self.model.fit_generator(
             self.get_train_data_generator(),
             steps_per_epoch=self.steps_per_epoch,
@@ -194,10 +191,18 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
         import pdb; pdb.set_trace()
         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
 
+    def predict(self, start_st, action): # -> resulting observation
+        data_x = np.zeros((1, self.input_dim + 1))
+        data_x[0][:self.input_dim] = start_st
+        data_x[0][-1:] = action
+
+        return self.model.predict(data_x)[0]
+
+
 class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
     """This agent tries to learn what observation has what reward."""
 
-    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, n_layers=None, lr=None):
+    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=None):
         super().__init__(buffer_size, training_period, n_actions)
 
         self.input_dim = input_dim
@@ -234,7 +239,7 @@ class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
             yield data_x, data_y
 
     def train(self):
-        logger.debug('Agent training...')
+        logger.debug('Training {}...'.format(self.__class__.__name__))
         self.model.fit_generator(
             self.get_train_data_generator(),
             steps_per_epoch=self.steps_per_epoch,
@@ -247,53 +252,44 @@ class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
         import pdb; pdb.set_trace()
         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
 
+    def predict(self, observation): # -> float (reward)
+        return self.model.predict(np.array([observation]))[0]
 
-# class RewardGuideBufferedKerasAgent(BufferedAgent):
-#     """Predict the reward that each of the next possible steps would give."""
-#
-#     def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, n_layers=None, lr=None):
-#         super().__init__(buffer_size, training_period, n_actions)
-#
-#         self.input_dim = input_dim
-#         self.batch_size = batch_size
-#         self.steps_per_epoch = steps_per_epoch
-#         self.epochs = epochs
-#         self.model = self.create_model(input_dim, lr)
-#
-#     def create_model(self, input_dim, learning_rate=1e-3):
-#         inputs  = Input(shape=(input_dim,))
-#         outputs = inputs
-#
-#         outputs = LSTM(input_dim)(outputs)
-#         outputs = Dense(input_dim, activation='relu')(outputs)
-#         outputs = Dense(self.n_actions, activation='softmax')(outputs)
-#
-#         model = Model(inputs=inputs, outputs=outputs)
-#         model.compile(loss='mse',
-#                   optimizer='rmsprop',
-#                   metrics=['acc'])
-#         model.summary()
-#         return model
-#
-#     def get_train_data_generator(self):       # We don't have access to the neigbouring states so we can't really train it.
-#         while True:
-#             np.array([observation for observation, reward, decision in self.buffer])
-#
-#             yield data_x, data_y
-#
-#     def train(self):
-#         logger.debug('Agent training...')
-#         self.model.fit_generator(
-#             self.get_train_data_generator(),
-#             steps_per_epoch=self.steps_per_epoch,
-#             epochs=self.epochs
-#         )
-#         #
-#
-#     def decide(self, observation):
-#         return np.argmax(self.model.predict(np.array([observation])))
-#
-#     def eval(self):
-#         data_x, data_y = next(self.get_train_data_generator())
-#         import pdb; pdb.set_trace()
-#         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
+class ExplorationAgent(BufferedAgent):
+    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=None):
+        super().__init__(buffer_size, training_period, n_actions)
+
+        self.input_dim = input_dim
+        self.batch_size = batch_size
+        self.steps_per_epoch = steps_per_epoch
+        self.epochs = epochs
+
+        self.wm_agent     = WorldModelBufferedKerasAgent(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=lr)
+        self.reward_agent = RewardPredictBufferedKerasAgent(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=lr)
+        self.sim_agent    = RandomBufferedKerasAgent(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=lr)
+
+        # Make them all use the same buffer. We do the recording for them.
+        self.wm_agent.buffer     = self.buffer
+        self.reward_agent.buffer = self.buffer
+        self.sim_agent.buffer    = self.buffer
+
+    def train(self):
+        # Gets called every 10,000 steps to train the sub-agents that we're using
+        self.wm_agent.train()
+        self.reward_agent.train()
+        self.sim_agent.train()
+
+    def decide(self, observation, reward):
+        candidates = {}     # {action, predicted_outcome}
+
+        # Predict the observation for each action
+        for act_no in range(self.n_actions):
+            candidates[act_no] = self.wm_agent.predict(observation, act_no)
+
+        # Find the one with the highest reward
+        highest_reward = 0                              # <- action with the highest reward
+        for action, outcome in candidates.items():
+            if self.reward_agent.predict(outcome) > self.reward_agent.predict(candidates[highest_reward]):    # Replace the action with the highest reward if this one is better.
+                highest_reward = action
+
+        return highest_reward

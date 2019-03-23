@@ -1,4 +1,5 @@
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +22,8 @@ class Eval():
 
         score = 0
 
-        observation = self.world.state.observation
-        reward      = self.world.state.reward
+        observation = np.zeros(5)#self.world.state.observation
+        reward      = 0#self.world.state.reward
 
         for i in range(n_steps):
             # get agent's action based on the world observation
@@ -32,7 +33,7 @@ class Eval():
 
             # get world's reaction
             observation, reward, done, _ = self.world.step(action)
-            logger.debug('step %d: observation: %s, reward: %.2f, done: %d', i, observation, reward, done)
+            logger.debug('step %d: observation: %s, reward: %.2f, done: %d', i, "...", reward, done)
 
             score += reward
 
