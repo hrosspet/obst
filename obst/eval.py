@@ -1,14 +1,17 @@
+import matplotlib.pyplot as plt
+from datetime import datetime
 import logging
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 class Eval():
-    def __init__(self, world, agent, training_steps, test_steps):
+    def __init__(self, world, agent, training_steps, test_steps, vis_steps):
         self.world = world
         self.agent = agent
         self.training_steps = training_steps
         self.test_steps = test_steps
+        self.vis_steps = vis_steps
 
         self.training_score = 0
         self.test_score = 0
@@ -26,6 +29,15 @@ class Eval():
         reward      = 0#self.world.state.reward
 
         for i in range(n_steps):
+            # Plot the agent's movements if it's time
+            if i % self.vis_steps == 0:
+                self.world.plot_actions()
+                plt.savefig('logs/' + datetime.now().strftime("%Y%m%d%H%M%S") + '_steps_' + str(i - self.vis_steps) + '_' + str(i) + '.png')
+                plt.close()
+
+            if i % (self.training_steps // 10) == 0:
+                logger.info("step {}".format(i))
+
             # get agent's action based on the world observation
             action = self.agent.behave(observation, reward)
 

@@ -71,7 +71,7 @@ class RandomBufferedAgent(BufferedAgent):
 from keras.models import Model
 from keras.layers import Input, Dense, Dropout, LSTM
 
-class RandomBufferedKerasAgent(RandomBufferedAgent):
+class SimBufferedKerasAgent(RandomBufferedAgent):
     def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=None):
         super().__init__(buffer_size, training_period, n_actions)
 
@@ -134,6 +134,9 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
         data_x, data_y = next(self.get_train_data_generator())
         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
 
+    def predict(self, obs_a, obs_b): # -> float (similarity)
+        return self.model.predict(np.array([obs_a - obs_b]))[0]
+
 class WorldModelBufferedKerasAgent(RandomBufferedAgent):
     """This agent learns to predict the observation that will be caused by an action."""
 
@@ -150,6 +153,7 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
         inputs  = Input(shape=(input_dim + 1,))
         outputs = inputs
         outputs = Dense(input_dim, activation='relu')(outputs)
+        outputs = Dropout(0.5)(outputs)
         outputs = Dense(input_dim, activation='relu')(outputs)
 
         model = Model(inputs=inputs, outputs=outputs)
@@ -266,7 +270,7 @@ class ExplorationAgent(BufferedAgent):
 
         self.wm_agent     = WorldModelBufferedKerasAgent(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=lr)
         self.reward_agent = RewardPredictBufferedKerasAgent(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=lr)
-        self.sim_agent    = RandomBufferedKerasAgent(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=lr)
+        self.sim_agent    = SimBufferedKerasAgent(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=lr)
 
         # Make them all use the same buffer. We do the recording for them.
         self.wm_agent.buffer     = self.buffer
@@ -286,10 +290,17 @@ class ExplorationAgent(BufferedAgent):
         for act_no in range(self.n_actions):
             candidates[act_no] = self.wm_agent.predict(observation, act_no)
 
-        # Find the one with the highest reward
-        highest_reward = 0                              # <- action with the highest reward
-        for action, outcome in candidates.items():
-            if self.reward_agent.predict(outcome) > self.reward_agent.predict(candidates[highest_reward]):    # Replace the action with the highest reward if this one is better.
-                highest_reward = action
+        # # Find the one with the highest reward
+        # highest_reward = 0                              # <- action with the highest reward
+        # for action, outcome in candidates.items():
+        #     if self.reward_agent.predict(outcome) > self.reward_agent.predict(candidates[highest_reward]):    # Replace the action with the highest reward if this one is better.
+        #         highest_reward = action
 
-        return highest_reward
+        # Find the one with the lowest similarity
+        lowest_sim = 0
+        for action, outcome in candidates.items():
+            print('{}: {}\t->\t{}\t ({})'.format(action, observation, outcome, self.sim_agent.predict(outcome, observation)))
+            if self.sim_agent.predict(outcome, observation) < self.sim_agent.predict(observation, candidates[lowest_sim]):    # Replace the action with the highest reward if this one is better.
+                lowest_sim = action
+
+        return lowest_sim

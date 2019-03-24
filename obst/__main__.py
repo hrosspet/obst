@@ -12,7 +12,7 @@ def main(verbosity='INFO', loglevel='INFO', gitdir='.git'):
     ####
     world = CONFIG['WORLD']['CONSTRUCTOR'](**CONFIG['WORLD']['PARAMS'])
     agent = CONFIG['AGENT']['CONSTRUCTOR'](**CONFIG['AGENT']['PARAMS'])
-    evaluation = Eval(world, agent, training_steps=TRAINING_STEPS, test_steps=TEST_STEPS)
+    evaluation = Eval(world, agent, training_steps=TRAINING_STEPS, test_steps=TEST_STEPS, vis_steps=CONFIG['VISUALIZE_STEPS'])
 
     run_name = '_'.join([world.__class__.__name__, agent.__class__.__name__])
     print('\nWorld:\t{}\nAgent:\t{}\n'.format(world.__class__.__name__, agent.__class__.__name__))
@@ -27,8 +27,7 @@ def main(verbosity='INFO', loglevel='INFO', gitdir='.git'):
     logger.info('run_id: %s', RUN_ID)
 
     try:
-        for i in range(10):
-            print('evaluation.train():', evaluation.train())
+        print('evaluation.train():', evaluation.train())
         # print('evaluation.test():', evaluation.test())
     except KeyboardInterrupt:
         logger.warning("Terminated by user.")
