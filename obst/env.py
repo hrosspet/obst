@@ -77,6 +77,8 @@ class OneHot1DCyclicWorld(OneHot1DWorld):
         self.states[0].neighborhood[1] = self.states[-1]
         self.states[-1].neighborhood[0] = self.states[0]
 
+rewards = [(20, 19), (34, 28), (21, 33)]
+
 class My2DWorld(World):
     def __init__(self, width, height):
         super().__init__()
@@ -112,7 +114,7 @@ class My2DWorld(World):
         print(self.agt_x, self.agt_y)
         # An arbitary set of numbers that changes for each state
         obs = (math.log(self.agt_x+1), math.log(self.agt_x+1, self.agt_y+2), math.log(self.width - self.agt_x+1, 10), math.log(self.height - self.agt_y+1), math.log(abs(self.agt_y - self.agt_x)+1))
-        return obs, 0, False, None
+        return obs, (1 if (self.agt_x, self.agt_y) in rewards else 0), False, None
 
     def reset(self, test):
         self.agt_x = self.width  // 2
@@ -140,6 +142,11 @@ class Visualizing2DWorld(My2DWorld):
         vis.axis((0, self.width, 0, self.height))
         vis.grid(True)
 
+        # Draw rewards
+        for coords in rewards:
+            vis.scatter(*coords, c='green')
+
+        # Draw steps
         for i in range(len(self.pos_history) - 1):
             pct = i / len(self.pos_history);
 
