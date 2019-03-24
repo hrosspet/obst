@@ -1,10 +1,10 @@
-from obst.env import OneHot1DWorld, OneHot1DCyclicWorld, My2DWorld
+from obst.env import OneHot1DWorld, OneHot1DCyclicWorld, My2DWorld, Visualizing2DWorld
 from obst.agent import ExplorationAgent, RandomBufferedKerasAgent, WorldModelBufferedKerasAgent, RewardPredictBufferedKerasAgent
 
 CONFIG = {
     'TIME_FORMAT': '%Y-%m-%d %H:%M:%S',
     'WORLD': {
-        'CONSTRUCTOR': My2DWorld,
+        'CONSTRUCTOR': Visualizing2DWorld,
         'PARAMS': {
             # 'size': 1000,
             'width': 50, 'height': 50,
@@ -27,5 +27,7 @@ CONFIG = {
         }
     },
     'TRAINING_STEPS': 10000,
-    'TEST_STEPS': 100
+    'TEST_STEPS': 100,
+
+    'VISUALIZE_STEPS': 10000,    # Show a visualisatrion every n steps
 }

@@ -121,7 +121,7 @@ class RandomBufferedKerasAgent(RandomBufferedAgent):
             yield data_x, data_y
 
     def train(self):
-        logger.debug('Training {}...'.format(self.__class__.__name__))
+        logger.info('Training {}...'.format(self.__class__.__name__))
         self.model.fit_generator(
             self.get_train_data_generator(),
             steps_per_epoch=self.steps_per_epoch,
@@ -178,7 +178,7 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
             yield data_x, data_y
 
     def train(self):
-        logger.debug('Training {}...'.format(self.__class__.__name__))
+        logger.info('Training {}...'.format(self.__class__.__name__))
         self.model.fit_generator(
             self.get_train_data_generator(),
             steps_per_epoch=self.steps_per_epoch,
@@ -239,7 +239,7 @@ class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
             yield data_x, data_y
 
     def train(self):
-        logger.debug('Training {}...'.format(self.__class__.__name__))
+        logger.info('Training {}...'.format(self.__class__.__name__))
         self.model.fit_generator(
             self.get_train_data_generator(),
             steps_per_epoch=self.steps_per_epoch,

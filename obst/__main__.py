@@ -27,8 +27,9 @@ def main(verbosity='INFO', loglevel='INFO', gitdir='.git'):
     logger.info('run_id: %s', RUN_ID)
 
     try:
-        print('evaluation.train():', evaluation.train())
-        print('evaluation.test():', evaluation.test())
+        for i in range(10):
+            print('evaluation.train():', evaluation.train())
+        # print('evaluation.test():', evaluation.test())
     except KeyboardInterrupt:
         logger.warning("Terminated by user.")
     except SystemExit:

@@ -84,8 +84,7 @@ class My2DWorld(World):
         self.width = width
         self.height = height
 
-        self.agt_x = width  // 2
-        self.agt_y = height // 2
+        self.reset(False)
 
     def step(self, action):
         # Respond to action
@@ -109,3 +108,46 @@ class My2DWorld(World):
     def reset(self, test):
         self.agt_x = self.width  // 2
         self.agt_y = self.height // 2
+
+from datetime import datetime
+import matplotlib.pyplot as plt
+
+VIS_STEPS = 10000
+global RUN_ID
+
+class Visualizing2DWorld(My2DWorld):
+    def __init__(self, width, height):
+        super().__init__(width, height)
+
+        self.step_no = 0
+
+        self.init_plot()
+
+    def init_plot(self):
+        self.vis = plt.subplot()    # Visualization
+
+        self.vis.axis((0, self.width, 0, self.height))
+        self.vis.grid(True)
+
+    def step(self, action):
+        # Keep track of the old coordinates before the agent moves
+        old_agt_x, old_agt_y = self.agt_x, self.agt_y
+
+        # Log the step number
+        if (self.step_no % 1000 == 0): logging.info('Step {}'.format(self.step_no))
+
+        if (self.step_no % VIS_STEPS == 0):
+            plt.title('Steps {} - {}'.format(self.step_no - VIS_STEPS, self.step_no))
+            plt.savefig('logs/' + datetime.now().strftime("%Y%m%d%H%M%S") + '_steps_' + str(self.step_no - VIS_STEPS) + '_' + str(self.step_no) + '.png')
+            self.init_plot()
+
+        #
+        ret = super().step(action)
+        # print('Step', self.step_no, '\t', (old_agt_x, old_agt_y), action, (self.agt_x, self.agt_y))
+
+        pct = (self.step_no % VIS_STEPS) / VIS_STEPS; pct = min(pct, 1)    # between 0 and 1 depending on how soon the stwps will be visualized
+        self.vis.plot([old_agt_x, self.agt_x], [old_agt_y, self.agt_y], color=(pct, 0, 1-pct))
+
+        self.step_no += 1
+
+        return ret
