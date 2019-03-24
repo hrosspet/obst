@@ -135,7 +135,7 @@ class SimBufferedKerasAgent(RandomBufferedAgent):
         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
 
     def predict(self, obs_a, obs_b): # -> float (similarity)
-        return self.model.predict(np.array([obs_a - obs_b]))[0]
+        return self.model.predict(np.array([obs_a - obs_b]))[0][0]
 
 class WorldModelBufferedKerasAgent(RandomBufferedAgent):
     """This agent learns to predict the observation that will be caused by an action."""
@@ -153,7 +153,7 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
         inputs  = Input(shape=(input_dim + 1,))
         outputs = inputs
         outputs = Dense(input_dim, activation='relu')(outputs)
-        outputs = Dropout(0.5)(outputs)
+        outputs = Dropout(0.4)(outputs)
         outputs = Dense(input_dim, activation='relu')(outputs)
 
         model = Model(inputs=inputs, outputs=outputs)
@@ -284,11 +284,11 @@ class ExplorationAgent(BufferedAgent):
         self.sim_agent.train()
 
     def decide(self, observation, reward):
-        candidates = {}     # {action, predicted_outcome}
+        candidates_obs = {}     # {action, predicted_outcome}
 
         # Predict the observation for each action
         for act_no in range(self.n_actions):
-            candidates[act_no] = self.wm_agent.predict(observation, act_no)
+            candidates_obs[act_no] = self.wm_agent.predict(observation, act_no)
 
         # # Find the one with the highest reward
         # highest_reward = 0                              # <- action with the highest reward
@@ -297,10 +297,17 @@ class ExplorationAgent(BufferedAgent):
         #         highest_reward = action
 
         # Find the one with the lowest similarity
-        lowest_sim = 0
-        for action, outcome in candidates.items():
-            print('{}: {}\t->\t{}\t ({})'.format(action, observation, outcome, self.sim_agent.predict(outcome, observation)))
-            if self.sim_agent.predict(outcome, observation) < self.sim_agent.predict(observation, candidates[lowest_sim]):    # Replace the action with the highest reward if this one is better.
-                lowest_sim = action
+        candidates_sim = {}
+
+        for action, outcome in candidates_obs.items():
+            candidates_sim[action] = self.sim_agent.predict(observation, outcome)
+
+        lowest_sim = min(candidates_sim, key=candidates_sim.get)
+
+        if all(value == 0 for value in candidates_sim.values()):     # If they're all 0s then chose a random action so we at least get some useful training data
+            lowest_sim = random.randint(0, self.n_actions - 1)
+
+        for action, sim in candidates_sim.items():
+            print('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_obs[action], sim, '*' if action == lowest_sim else ''))
 
         return lowest_sim

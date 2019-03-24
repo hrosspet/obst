@@ -16,8 +16,8 @@ CONFIG = {
         # 'CONSTRUCTOR': RewardPredictBufferedKerasAgent,
         'CONSTRUCTOR': ExplorationAgent,
         'PARAMS': {
-            'buffer_size': 1000,
-            'training_period': 1000,
+            'buffer_size': 10000,
+            'training_period': 100,
             'n_actions': 4,
             'input_dim': 5,     # size of observation
             'batch_size': 32,

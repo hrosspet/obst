@@ -109,7 +109,7 @@ class My2DWorld(World):
                 self.agt_x -= 1
             elif self.cyclic:
                 self.agt_y = self.width - 1
-
+        print(self.agt_x, self.agt_y)
         # An arbitary set of numbers that changes for each state
         obs = (math.log(self.agt_x+1), math.log(self.agt_x+1, self.agt_y+2), math.log(self.width - self.agt_x+1, 10), math.log(self.height - self.agt_y+1), math.log(abs(self.agt_y - self.agt_x)+1))
         return obs, 0, False, None
