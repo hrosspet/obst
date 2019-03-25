@@ -77,7 +77,8 @@ class OneHot1DCyclicWorld(OneHot1DWorld):
         self.states[0].neighborhood[1] = self.states[-1]
         self.states[-1].neighborhood[0] = self.states[0]
 
-rewards = [(20, 19), (34, 28), (21, 33)]
+# rewards = [(20, 19), (34, 28), (21, 33)]
+rewards = [(7, 3)]
 
 class My2DWorld(World):
     def __init__(self, width, height):
@@ -85,7 +86,7 @@ class My2DWorld(World):
 
         self.width = width
         self.height = height
-        self.cyclic = True
+        self.cyclic = False
 
         self.reset(False)
 
