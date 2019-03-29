@@ -41,11 +41,11 @@ class Eval():
             # get agent's action based on the world observation
             action = self.agent.behave(observation, reward)
 
-            logger.debug('step %d: action: %d', i, action)
+            # logger.debug('step %d: action: %d', i, action)
 
             # get world's reaction
             observation, reward, done, _ = self.world.step(action)
-            logger.debug('step %d: observation: %s, reward: %.2f, done: %d', i, "...", reward, done)
+            # logger.debug('step %d: observation: %s, reward: %.2f, done: %d', i, "...", reward, done)
 
             score += reward
 

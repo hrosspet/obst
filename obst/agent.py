@@ -1,9 +1,14 @@
 from abc import ABC, abstractmethod
+from enum import Enum
 import numpy as np
 import random
 import logging
 
 logger = logging.getLogger(__name__)
+
+class AgentMode(Enum):
+    EXPLORE = 0
+    EXPLOIT = 1
 
 class AbstractAgent(ABC):
     @abstractmethod
@@ -49,7 +54,9 @@ class BufferedAgent(AbstractAgent):
             self.train()
 
     def record(self, observation, reward, decision):
-        self.buffer.append((observation, reward, decision))     # Append a tuple of the observation, the reward of the observed state, and the decision that was made on it
+        # Append a tuple of the observation, the reward of the observed state, and the decision that was made on it.
+        # We keep the observation and not the inner representation because the network that extracts data from the observation changes over time.
+        self.buffer.append((observation, reward, decision))
 
         if len(self.buffer) > self.buffer_size:
             self.buffer.pop(0)
@@ -67,27 +74,29 @@ class RandomBufferedAgent(BufferedAgent):
         # We have to make the movement biased towards one side to prevent the agent from going back and forth in a small area
         return (0 if random.randint(0,6) <= 3  else 1)  # This just learns the effect of random movements and does not make any computed decissions
 
-
 from keras.models import Model
 from keras.layers import Input, Dense, Dropout, LSTM
 
+from obst.models import PreprocessModel, SimModel, WMModel, RewardModel
+
 class SimBufferedKerasAgent(RandomBufferedAgent):
-    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=None):
+    def __init__(self, buffer_size, training_period, n_actions, repr_size, batch_size, steps_per_epoch, epochs, lr=None):
         super().__init__(buffer_size, training_period, n_actions)
 
-        self.input_dim = input_dim
+        self.repr_size = repr_size
         self.batch_size = batch_size
         self.steps_per_epoch = steps_per_epoch
         self.epochs = epochs
-        self.model = self.create_model(input_dim, lr)
+        self.model = SimBufferedKerasAgent.create_model(repr_size, lr)
 
-    def create_model(self, input_dim, learning_rate=1e-3):
-        inputs = Input(shape=(input_dim,))
+    @staticmethod
+    def create_model(repr_size, learning_rate=1e-3):
+        inputs = Input(shape=(repr_size,))
         outputs = inputs
 
         OUTPUT_DIM = 1
 
-        outputs = Dense(input_dim, activation='relu')(outputs)
+        outputs = Dense(repr_size, activation='relu')(outputs)
         outputs = Dense(OUTPUT_DIM, activation='relu')(outputs)
 
         model = Model(inputs=inputs, outputs=outputs)
@@ -107,16 +116,18 @@ class SimBufferedKerasAgent(RandomBufferedAgent):
             dissimilar_idx_1 = idx[half_batch*2:]
             data = np.array([observation for observation, reward, decision in self.buffer])
 
-            data_x = np.zeros((self.batch_size, self.input_dim))
+            data_x = np.zeros((self.batch_size, self.repr_size))
             data_y = np.zeros((self.batch_size, 1))
 
             # fill in similar samples
-            data_x[:half_batch] = data[similar_idx, :] - data[similar_idx+1, :]
+            data_x[:half_batch, :self.repr_size] = data[similar_idx, :]
+            data_x[:half_batch, self.repr_size:] = data[similar_idx+1, :]
 
             data_y[:half_batch] = 1
 
             # fill in dissimilar samples
-            data_x[half_batch:] = data[dissimilar_idx_0, :] - data[dissimilar_idx_1, :]
+            data_x[half_batch:, :self.repr_size] = data[dissimilar_idx_0, :]
+            data_x[half_batch:, self.repr_size:] = data[dissimilar_idx_1, :]
 
             yield data_x, data_y
 
@@ -135,26 +146,28 @@ class SimBufferedKerasAgent(RandomBufferedAgent):
         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
 
     def predict(self, obs_a, obs_b): # -> float (similarity)
+        inp = np.zeros(self.repr_size)
         return self.model.predict(np.array([obs_a - obs_b]))[0][0]
 
 class WorldModelBufferedKerasAgent(RandomBufferedAgent):
     """This agent learns to predict the observation that will be caused by an action."""
 
-    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=None):
+    def __init__(self, buffer_size, training_period, n_actions, repr_size, batch_size, steps_per_epoch, epochs, lr=None):
         super().__init__(buffer_size, training_period, n_actions)
 
-        self.input_dim = input_dim
+        self.repr_size = repr_size
         self.batch_size = batch_size
         self.steps_per_epoch = steps_per_epoch
         self.epochs = epochs
-        self.model = self.create_model(input_dim, lr)
+        self.model = WorldModelBufferedKerasAgent.create_model(repr_size, lr)
 
-    def create_model(self, input_dim, learning_rate=1e-3):
-        inputs  = Input(shape=(input_dim + 1,))
+    @staticmethod
+    def create_model(repr_size, learning_rate=1e-3):
+        inputs  = Input(shape=(repr_size + 1,))
         outputs = inputs
-        outputs = Dense(input_dim, activation='relu')(outputs)
+        outputs = Dense(repr_size, activation='relu')(outputs)
         outputs = Dropout(0.4)(outputs)
-        outputs = Dense(input_dim, activation='relu')(outputs)
+        outputs = Dense(repr_size, activation='relu')(outputs)
 
         model = Model(inputs=inputs, outputs=outputs)
         model.compile(loss='mse',
@@ -167,14 +180,14 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
         while True:
             start_idxs = [np.random.randint(0, len(self.buffer)  - 1) for _ in range(self.batch_size)]
 
-            data_x = np.zeros((self.batch_size, self.input_dim + 1))
-            data_y = np.zeros((self.batch_size, self.input_dim))
+            data_x = np.zeros((self.batch_size, self.repr_size + 1))
+            data_y = np.zeros((self.batch_size, self.repr_size))
 
             for i in range(self.batch_size):
                 start_st, _, action = self.buffer[start_idxs[i]]
                 end_st, _, _ = self.buffer[start_idxs[i] + 1]      # end state/observation
 
-                data_x[i][:self.input_dim] = start_st
+                data_x[i][:self.repr_size] = start_st
                 data_x[i][-1] = action
 
                 data_y[i] = end_st      # data_y is essentially data_x shifted by one
@@ -196,8 +209,8 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
         return self.model.evaluate(data_x, data_y, batch_size=len(self.buffer))
 
     def predict(self, start_st, action): # -> resulting observation
-        data_x = np.zeros((1, self.input_dim + 1))
-        data_x[0][:self.input_dim] = start_st
+        data_x = np.zeros((1, self.repr_size + 1))
+        data_x[0][:self.repr_size] = start_st
         data_x[0][-1:] = action
 
         return self.model.predict(data_x)[0]
@@ -206,19 +219,20 @@ class WorldModelBufferedKerasAgent(RandomBufferedAgent):
 class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
     """This agent tries to learn what observation has what reward."""
 
-    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=None):
+    def __init__(self, buffer_size, training_period, n_actions, repr_size, batch_size, steps_per_epoch, epochs, lr=None):
         super().__init__(buffer_size, training_period, n_actions)
 
-        self.input_dim = input_dim
+        self.repr_size = repr_size
         self.batch_size = batch_size
         self.steps_per_epoch = steps_per_epoch
         self.epochs = epochs
-        self.model = self.create_model(input_dim, lr)
+        self.model = RewardPredictBufferedKerasAgent.create_model(repr_size, lr)
 
-    def create_model(self, input_dim, learning_rate=1e-3):
-        inputs  = Input(shape=(input_dim,))
+    @staticmethod
+    def create_model(repr_size, learning_rate=1e-3):
+        inputs  = Input(shape=(repr_size,))
         outputs = inputs
-        outputs = Dense(input_dim, activation='relu')(outputs)
+        outputs = Dense(repr_size, activation='relu')(outputs)
         # outputs = Dropout(0.5)(outputs)
         outputs = Dense(1, activation='relu')(outputs)
 
@@ -231,7 +245,7 @@ class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
 
     def get_train_data_generator(self):
         while True:
-            data_x = np.zeros((self.batch_size, self.input_dim))
+            data_x = np.zeros((self.batch_size, self.repr_size))
             data_y = np.zeros((self.batch_size, 1))
 
             for i in range(self.batch_size):
@@ -260,17 +274,17 @@ class RewardPredictBufferedKerasAgent(RandomBufferedAgent):
         return self.model.predict(np.array([observation]))[0]
 
 class ExplorationAgent(BufferedAgent):
-    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=None):
+    def __init__(self, mode, buffer_size, training_period, n_actions, repr_size, batch_size, steps_per_epoch, epochs, lr=None):
         super().__init__(buffer_size, training_period, n_actions)
 
-        self.input_dim = input_dim
+        self.repr_size = repr_size
         self.batch_size = batch_size
         self.steps_per_epoch = steps_per_epoch
         self.epochs = epochs
 
-        self.wm_agent     = WorldModelBufferedKerasAgent(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=lr)
-        self.reward_agent = RewardPredictBufferedKerasAgent(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=lr)
-        self.sim_agent    = SimBufferedKerasAgent(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=lr)
+        self.wm_agent     = WorldModelBufferedKerasAgent(buffer_size, training_period, n_actions, repr_size, batch_size, steps_per_epoch, epochs, lr=lr)
+        self.reward_agent = RewardPredictBufferedKerasAgent(buffer_size, training_period, n_actions, repr_size, batch_size, steps_per_epoch, epochs, lr=lr)
+        self.sim_agent    = SimBufferedKerasAgent(buffer_size, training_period, n_actions, repr_size, batch_size, steps_per_epoch, epochs, lr=lr)
 
         # Make them all use the same buffer. We do the recording for them.
         self.wm_agent.buffer     = self.buffer
@@ -284,8 +298,8 @@ class ExplorationAgent(BufferedAgent):
         self.sim_agent.train()
 
 class CuriousExplorationAgent(ExplorationAgent):
-    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=None):
-        super().__init__(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr)
+    def __init__(self, buffer_size, training_period, n_actions, repr_size, batch_size, steps_per_epoch, epochs, lr=None):
+        super().__init__(buffer_size, training_period, n_actions, repr_size, batch_size, steps_per_epoch, epochs, lr)
 
     def decide(self, observation, reward):
         candidates_obs = {}     # {action, predicted_observation}
@@ -311,8 +325,8 @@ class CuriousExplorationAgent(ExplorationAgent):
         return highest_reward
 
 class RewardExplorationAgent(ExplorationAgent):
-    def __init__(self, buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr=None):
-        super().__init__(buffer_size, training_period, n_actions, input_dim, batch_size, steps_per_epoch, epochs, lr)
+    def __init__(self, buffer_size, training_period, n_actions, repr_size, batch_size, steps_per_epoch, epochs, lr=None):
+        super().__init__(buffer_size, training_period, n_actions, repr_size, batch_size, steps_per_epoch, epochs, lr)
 
     def decide(self, observation, reward):
         candidates_obs = {}     # {action, predicted_observation}
@@ -336,3 +350,70 @@ class RewardExplorationAgent(ExplorationAgent):
             print('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_obs[action], sim, '*' if action == lowest_sim else ''))
 
         return lowest_sim
+
+class NewExplorationAgent(BufferedAgent):
+    def __init__(self, mode, buffer_size, training_period, n_actions, obs_size, repr_size, batch_size, steps_per_epoch, epochs, lr=None):
+        super().__init__(buffer_size, training_period, n_actions)
+
+        self.mode = AgentMode[mode] # parses the string as an enum
+        self.repr_size = repr_size
+        self.obs_size = obs_size
+        self.batch_size = batch_size
+        self.steps_per_epoch = steps_per_epoch
+        self.epochs = epochs
+
+        # Create models
+        self.prep_layers = PreprocessModel.create_layers(obs_size, repr_size)
+        self.prep_layers.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
+
+        self.sim_model = SimModel(prep_layers, obs_size, repr_size)
+        self.wm_model  = WMModel(prep_layers, obs_size, repr_size)
+        self.rew_model = RewardModel(prep_layers, obs_size, repr_size)
+
+    def decide(self, observation, reward):
+        representation = self.prep_layers.predict(np.array([observation]))[0]
+        candidates_repr = {}     # {action, predicted_repr}
+
+        # Predict the observation for each action
+        for act_no in range(self.n_actions):
+            candidates_obs[act_no] = self.wm_model.nice_predict(observation, act_no)
+
+        if self.mode == AgentMode.EXPLORE:
+            # Find the one with the lowest similarity
+            candidates_sim = {}
+
+            for action, outcome in candidates_repr.items():
+                candidates_sim[action] = self.sim_model.sim_reprs(representation, outcome)
+
+            lowest_sim = min(candidates_sim, key=candidates_sim.get)
+
+            if all(value == 0 for value in candidates_sim.values()):     # If they're all 0s then chose a random action so we at least get some useful training data
+                lowest_sim = random.randint(0, self.n_actions - 1)
+
+            for action, sim in candidates_sim.items():
+                logger.debug('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_obs[action], sim, '*' if action == lowest_sim else ''))
+
+            return lowest_sim
+
+        elif self.mode == AgentMode.EXPLOIT:
+            # Find the one with the highest reward
+            candidates_reward = {}
+
+            for action, outcome in candidates_obs.items():
+                candidates_reward[action] = self.reward_agent.predict(observation)
+
+            highest_reward = max(candidates_reward, key=candidates_reward.get)
+
+            if all(value == 0 for value in candidates_reward.values()):     # If they're all 0s then chose a random action so we at least get some useful training data
+                highest_reward = random.randint(0, self.n_actions - 1)
+
+            for action, pred_reward in candidates_reward.items():
+                logger.debug('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_obs[action], pred_reward, '*' if action == highest_reward else ''))
+
+            return highest_reward
+
+    def train(self):
+        # Gets called every 10,000 steps to train the various models we're using
+        self.sim_agent.nice_train(self.buffer, self.batch_size)
+        self.wm_model.nice_train(self.buffer, self.batch_size)
+        self.reward_agent.nice_train(self.buffer, self.batch_size)
