@@ -123,7 +123,7 @@ class ExplorationAgent(BufferedAgent):
             candidates_reward = {}  # {action, predicted_reward}
 
             for action, outcome in candidates_repr.items():
-                candidates_reward[action] = self.reward_model.predict_rew(observation)
+                candidates_reward[action] = self.reward_model.predict_rew(representation)
                 candidates_reward[action] += random.uniform(-0.05, 0.05)    # in case all predictions are 0
 
             highest_reward = max(candidates_reward, key=candidates_reward.get)

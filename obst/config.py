@@ -14,10 +14,10 @@ CONFIG = {
         'CONSTRUCTOR': ExplorationAgent,
         'PARAMS': {
             'buffer_size': 10000,
-            'training_period': 100,
+            'training_period': 1000,
             'n_actions': 4,
             'obs_size': 5,     # size of input observation
-            'repr_size': 5,    # size of internal representation
+            'repr_size': 3,    # size of internal representation
             'batch_size': 32,
             'steps_per_epoch': 1000,
             'epochs': 2,
