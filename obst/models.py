@@ -2,20 +2,43 @@ import numpy as np
 import random
 import logging
 
+logger = logging.getLogger(__name__)
+
 from keras.models import Model
 from keras.layers import Input, concatenate, Dense, Dropout, LSTM
 
+# Each XxxModel class contains two keras models: a train_model and a use_model
+# The train_model contains the shared layers so that we can train these shared layers with the model. It works on observations.
+# The use_model only contains the layers made create_layers and is used for the predicting. (We make predictions from the inner representation, not straight from observations)
+
 class SimModel():
     def __init__(self, prep_layers, obs_size=None, repr_size=None):
+        # Create the special layers
+        sim_layers = SimModel.create_layers(repr_size=repr_size)    # These are shared between the train_ and use_model
+
+        # Create the two models that use them
+        self.train_model = self.create_train_model(prep_layers, sim_layers, obs_size, repr_size)
+        self.use_model   = self.create_use_model(sim_layers, repr_size)
+
+    def create_train_model(self, prep_layers, sim_layers, obs_size, repr_size):
         obs_a = Input(shape=(obs_size,))
         obs_b = Input(shape=(obs_size,))
-        prep_a  = prep_layers(obs_a)
-        prep_b  = prep_layers(obs_b)
+        repr_a  = prep_layers(obs_a)
+        repr_b  = prep_layers(obs_b)
 
-        self.sim_layers  = SimModel.create_layers(repr_size=repr_size)([prep_a, prep_b])
+        sim = sim_layers([repr_a, repr_b])
 
-        self.model = Model(inputs=[obs_a, obs_b], outputs=self.sim_layers)
-        self.model.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
+        train_model = Model(inputs=[obs_a, obs_b], outputs=sim)
+        train_model.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
+        return train_model
+
+    def create_use_model(self, sim_layers, repr_size):
+        repr_a = Input(shape=(repr_size,))
+        repr_b = Input(shape=(repr_size,))
+
+        sim = sim_layers([repr_a, repr_b])
+
+        return Model(inputs=[repr_a, repr_b], outputs=sim)
 
     @staticmethod
     def create_layers(repr_size=None):
@@ -28,55 +51,71 @@ class SimModel():
 
         return Model(inputs=[repr_a, repr_b], outputs=outputs)
 
-    def sim_obs(self, obs_a, obs_b): # -> float (similarity)
-        return self.model.predict([np.array([obs_a]), np.array([obs_b])])[0][0]
+    def get_train_data_gen(self, buffer, batch_size):
+        while True:
+            half_batch = batch_size // 2
+            idx = np.random.randint(0, len(buffer) - 1, 3 * half_batch)
+            similar_idx = idx[:half_batch]
+            dissimilar_idx_0 = idx[half_batch:half_batch*2]
+            dissimilar_idx_1 = idx[half_batch*2:]
+            data = np.array([observation for observation, reward, decision in buffer])
 
-    def sim_reprs(self, obs_a, obs_b): # -> float (similarity)
-        return self.sim_layers.predict([np.array([obs_a]), np.array([obs_b])])[0][0]
+            data_x_a = np.zeros((batch_size, data.shape[-1]))
+            data_x_b = np.zeros((batch_size, data.shape[-1]))
+            data_y = np.zeros((batch_size, 1))
 
-    def gen_train_data(self, buffer, batch_size=None):
-        half_batch = batch_size // 2
-        idx = np.random.randint(0, len(buffer) - 1, 3 * half_batch)
-        similar_idx = idx[:half_batch]
-        dissimilar_idx_0 = idx[half_batch:half_batch*2]
-        dissimilar_idx_1 = idx[half_batch*2:]
-        data = np.array([observation for observation, reward, decision in buffer])
+            # fill in similar samples
+            data_x_a[:half_batch, :] = data[similar_idx, :]
+            data_x_b[:half_batch, :] = data[similar_idx+1, :]
 
-        data_x_a = np.zeros((batch_size, data.shape[-1]))
-        data_x_b = np.zeros((batch_size, data.shape[-1]))
-        data_y = np.zeros((batch_size, 1))
+            data_y[:half_batch] = 1
 
-        # fill in similar samples
-        data_x_a[:half_batch, :] = data[similar_idx, :]
-        data_x_b[:half_batch, :] = data[similar_idx+1, :]
+            # fill in dissimilar samples
+            data_x_a[half_batch:, :] = data[dissimilar_idx_0, :]
+            data_x_b[half_batch:, :] = data[dissimilar_idx_1, :]
 
-        data_y[:half_batch] = 1
+            yield [data_x_a, data_x_b], data_y
 
-        # fill in dissimilar samples
-        data_x_a[half_batch:, :] = data[dissimilar_idx_0, :]
-        data_x_b[half_batch:, :] = data[dissimilar_idx_1, :]
+    def train(self, buffer, batch_size, epochs=None, steps_pe=None):
+        logger.info("Training {}...".format(self.__class__.__name__))
+        self.train_model.fit_generator(self.get_train_data_gen(buffer, batch_size), steps_per_epoch=steps_pe, epochs=epochs)
 
-        return (data_x_a, data_x_a), data_y
-
-    def nice_train(buffer, batch_size):
-        (x_repr_a, x_repr_b), y_sim = self.gen_train_data(buffer, batch_size)
-        self.model.train([x_repr_a, x_repr_b], y_sim)
+    def predict_sim(self, repr_a, repr_b):
+        return self.use_model.predict([np.array([repr_a]), np.array([repr_b])])[0]
 
 class WMModel():
     def __init__(self, prep_layers, obs_size=None, repr_size=None):
-        start_obs = Input(shape=(obs_size,), name='start_obs')
-        self.prep_layers = prep_layers(start_obs)   # layers that preprocess the start observation.
+        # Create the special layers
+        wm_layers = WMModel.create_layers(repr_size=repr_size)
+
+        # Create the two models that use them
+        self.train_model = self.create_train_model(prep_layers, wm_layers, obs_size, repr_size)
+        self.use_model   = self.create_use_model(wm_layers, repr_size)
+
+    def create_train_model(self, prep_layers, wm_layers, obs_size, repr_size):
+        start_obs  = Input(shape=(obs_size,), name='start_obs')
+        start_repr = prep_layers(start_obs)   # layers that preprocess the start observation.
 
         action = Input(shape=(1,), name='action')
 
-        self.wm_layers = WMModel.create_layers(repr_size=repr_size)([self.prep_layers, action])#({'start_repr': self.prep_layers, 'wm_action': action})
-        self.model = Model(inputs=[start_obs, action], outputs=self.wm_layers)
-        self.model.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
+        wm = wm_layers([start_repr, action])#({'start_repr': self.prep_layers, 'wm_action': action})
+
+        train_model = Model(inputs=[start_obs, action], outputs=wm)
+        train_model.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
+        return train_model
+
+    def create_use_model(self, wm_layers, repr_size):
+        start_repr = Input(shape=(repr_size,), name='start_repr')
+        action = Input(shape=(1,), name='action')
+
+        wm = wm_layers([start_repr, action])#({'start_repr': self.prep_layers, 'wm_action': action})
+
+        return Model(inputs=[start_repr, action], outputs=wm)
 
     @staticmethod
     def create_layers(repr_size=None):
         start_repr = Input(shape=(repr_size,), name='start_repr')
-        action = Input(shape=(1,), name='wm_action')
+        action = Input(shape=(1,), name='action')
 
         outputs = concatenate([start_repr, action])
         outputs = Dense(repr_size, activation='relu')(outputs)
@@ -84,39 +123,56 @@ class WMModel():
 
         return Model(inputs=[start_repr, action], outputs=outputs)
 
-    def nice_predict(self, start_obs, action): # -> representation of resulting obs
-        return self.model.predict({'start_obs': np.array([start_st]), 'action': np.array([action])})[0]
+    def get_train_data_gen(self, buffer, batch_size, prep_model):
+        while True:
+            start_idx = np.random.randint(0, len(buffer) - 1, size=batch_size)
 
-    def gen_train_data(self, buffer, batch_size=None):
-        start_idx = np.random.randint(0, len(buffer) - 1, size=batch_size)
+            np_buffer = np.array(buffer)
+            data_x_obs = np.zeros((batch_size, buffer[0][0].shape[0]))  # observation size
+            data_x_act = np.zeros((batch_size, 1))
 
-        np_buffer = np.array(buffer)
-        data_x_obs = np.zeros((batch_size, buffer[0][0].shape))
-        data_x_act  = np.zeros((batch_size, 1))
+            # select start_st
+            data_x_obs = np.stack(np_buffer[start_idx, 0])
+            # select action
+            data_x_act = np_buffer[start_idx, 2]     # buffer: [(observation, reward, action), ...]
 
-        # select start_st
-        data_x_obs = np_buffer[0, start_idx, :]
-        # select action
-        data_x_act = np_buffer[2, start_idx]     # buffer: [(observation, reward, action), ...]
+            # select end_st
+            data_y = np.stack(np_buffer[start_idx+1, 0])   # np.stack: numpy array of np arrays -> 2 dimensional np array
+            data_y = prep_model.model.predict(data_y)       # Although we get an observation for input, we only generate the inner representation of the outcome observation, so we need to process the outcome observations beforehand. obs + action -> end_repr
+            yield [data_x_obs, data_x_act], data_y
 
-        # select end_st
-        data_y = np_buffer[0, start_idx+1, :]   # Although we get an observation for input, we only generate the inner representation of the outcome observation, so we need to process the outcome observations beforehand. obs + action -> end_repr
-        data_y = self.prep_layers.predict(data_y)
+    def train(self, buffer, batch_size, prep_model, epochs=None, steps_pe=None):    # We need the prep model so that we can generate our y data from the observations in the buffer.
+        logger.info("Training {}...".format(self.__class__.__name__))
+        self.train_model.fit_generator(self.get_train_data_gen(buffer, batch_size, prep_model), steps_per_epoch=steps_pe, epochs=epochs)
 
-        return (data_x_obs, data_x_act), data_y
-
-    def nice_train(buffer, batch_size):
-        (x_obs, x_action), y_repr = self.gen_train_data(buffer, batch_size)
-        self.model.train({'start_obs': x_obs, 'action': x_action}, y_repr)
+    def predict_wm(self, start_repr, action): # -> representation of resulting obs
+        return self.use_model.predict({'start_repr': np.array([start_repr]), 'action': np.array([action])})[0]
 
 class RewardModel():
     def __init__(self, prep_layers, obs_size=None, repr_size=None):
-        input_obs = Input(shape=(obs_size,))
-        self.prep_layers = prep_layers(input_obs)
-        self.rew_layers  = RewardModel.create_layers(repr_size=repr_size)(self.prep_layers)
+        # Create the special layers
+        rew_layers  = RewardModel.create_layers(repr_size=repr_size)
 
-        self.model = Model(inputs=input_obs, outputs=self.rew_layers)
-        self.model.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
+        # Create the two models that use them
+        self.train_model = self.create_train_model(prep_layers, rew_layers, obs_size, repr_size)
+        self.use_model   = self.create_use_model(rew_layers, repr_size)
+
+    def create_train_model(self, prep_layers, rew_layers, obs_size, repr_size):
+        input_obs = Input(shape=(obs_size,))
+        _repr = prep_layers(input_obs)
+
+        rew = rew_layers(_repr)
+
+        train_model = Model(inputs=input_obs, outputs=rew)
+        train_model.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
+        return train_model
+
+    def create_use_model(self, rew_layers, repr_size):
+        _repr = Input(shape=(repr_size,))
+
+        rew = rew_layers(_repr)
+
+        return Model(inputs=_repr, outputs=rew)
 
     @staticmethod
     def create_layers(repr_size=None):
@@ -127,32 +183,42 @@ class RewardModel():
 
         return Model(inputs=inputs, outputs=outputs)
 
-    def predict(self, observation): # -> float (reward)
-        return self.model.predict(np.array([observation]))[0]
+    def get_train_data_gen(self, buffer, batch_size):
+        while True:
+            # Get all the positions in the buffer that have a reward and find just as many that don't
+            reward_records = [x for x in buffer if x[1] != 0]   # buffer: [(observation, reward, action), (obs...
+            noreward_records = [random.choice([x for x in buffer if x[1] == 0]) for _ in range(len(reward_records))]
 
-    def gen_train_data(self, buffer, batch_size=None):
-        # Get all the positions in the buffer that have a reward and find just as many that don't
-        reward_records = [x for x in buffer if x[1] != 0]   # buffer: [(observation, reward, action), (obs...
-        noreward_records = [random.choice(filter(lambda x: x[1] == 0), buffer) for _ in range(len(reward_records))]
+            data_x = np.zeros((len(reward_records) * 2, reward_records[0][0].shape[-1]))    # <- shape of observation
+            data_y = np.zeros((len(reward_records) * 2, 1))
 
-        data_x = np.zeros((len(reward_records) * 2, reward_records[0][0].shape[-1]))    # <- shape of observation
-        data_y = np.zeros((len(reward_records) * 2, 1))
+            data_x[:len(reward_records)] = [obs for obs, rew, act in reward_records]
+            data_y[:len(reward_records)] = 1
 
-        data_x[:len(reward_records)] = [obs for obs, rew, act in reward_records]
-        data_y[:len(reward_records)] = 1
+            data_x[len(reward_records):] = [obs for obs, rew, act in noreward_records]
+            data_y[len(reward_records):] = 0
 
-        data_x[len(reward_records):] = [obs for obs, rew, act in noreward_records]
-        data_y[len(reward_records):] = 0
+            yield data_x, data_y
 
-        return data_x, data_y
+    def train(self, buffer, batch_size, epochs=None, steps_pe=None):
+        if len([x for x in buffer if x[1] != 0]) != 0:  # If we've actually got some rewards in buffer to train on
+            logger.info("Training {}...".format(self.__class__.__name__))
+            self.train_model.fit_generator(self.get_train_data_gen(buffer, batch_size), steps_per_epoch=steps_pe, epochs=epochs)
 
-    def nice_train(buffer, batch_size):
-        data_x, data_y = self.gen_train_data(buffer, batch_size)
-        self.model.train(data_x, data_y)
-
-#
+    def predict_rew(self, repres): # -> float (reward)
+        return self.use_model.predict(np.array([repres]))[0]
 
 class PreprocessModel():
+    def __init__(self, prep_layers, obs_size=None):
+        # Create a simple model that does observation -> inner_representation
+        input_obs = Input(shape=(obs_size,))
+        output_repr = prep_layers(input_obs)
+
+        self.model = Model(inputs=input_obs, outputs=output_repr)
+
+    def get_repr(self, observation):
+        return self.model.predict(np.array([observation]))[0]
+
     @staticmethod
     def create_layers(obs_size=None, repr_size=None):
         inputs  = Input(shape=(obs_size,))

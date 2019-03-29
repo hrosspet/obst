@@ -364,26 +364,26 @@ class NewExplorationAgent(BufferedAgent):
 
         # Create models
         self.prep_layers = PreprocessModel.create_layers(obs_size, repr_size)
-        self.prep_layers.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
+        self.prep_model  = PreprocessModel(self.prep_layers, obs_size)
 
-        self.sim_model = SimModel(prep_layers, obs_size, repr_size)
-        self.wm_model  = WMModel(prep_layers, obs_size, repr_size)
-        self.rew_model = RewardModel(prep_layers, obs_size, repr_size)
+        self.sim_model = SimModel(self.prep_layers, obs_size, repr_size)
+        self.wm_model  = WMModel(self.prep_layers, obs_size, repr_size)
+        self.reward_model = RewardModel(self.prep_layers, obs_size, repr_size)
 
     def decide(self, observation, reward):
-        representation = self.prep_layers.predict(np.array([observation]))[0]
+        representation = self.prep_model.get_repr(observation)
         candidates_repr = {}     # {action, predicted_repr}
 
         # Predict the observation for each action
         for act_no in range(self.n_actions):
-            candidates_obs[act_no] = self.wm_model.nice_predict(observation, act_no)
+            candidates_repr[act_no] = self.wm_model.predict_wm(representation, act_no)
 
         if self.mode == AgentMode.EXPLORE:
             # Find the one with the lowest similarity
-            candidates_sim = {}
+            candidates_sim = {}     # {action, sim}
 
             for action, outcome in candidates_repr.items():
-                candidates_sim[action] = self.sim_model.sim_reprs(representation, outcome)
+                candidates_sim[action] = self.sim_model.predict_sim(representation, outcome)
 
             lowest_sim = min(candidates_sim, key=candidates_sim.get)
 
@@ -391,15 +391,15 @@ class NewExplorationAgent(BufferedAgent):
                 lowest_sim = random.randint(0, self.n_actions - 1)
 
             for action, sim in candidates_sim.items():
-                logger.debug('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_obs[action], sim, '*' if action == lowest_sim else ''))
+                logger.debug('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_repr[action], sim, '*' if action == lowest_sim else ''))
 
             return lowest_sim
 
         elif self.mode == AgentMode.EXPLOIT:
             # Find the one with the highest reward
-            candidates_reward = {}
+            candidates_reward = {}  # {action, predicted_reward}
 
-            for action, outcome in candidates_obs.items():
+            for action, outcome in candidates_repr.items():
                 candidates_reward[action] = self.reward_agent.predict(observation)
 
             highest_reward = max(candidates_reward, key=candidates_reward.get)
@@ -408,12 +408,12 @@ class NewExplorationAgent(BufferedAgent):
                 highest_reward = random.randint(0, self.n_actions - 1)
 
             for action, pred_reward in candidates_reward.items():
-                logger.debug('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_obs[action], pred_reward, '*' if action == highest_reward else ''))
+                logger.debug('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_repr[action], pred_reward, '*' if action == highest_reward else ''))
 
             return highest_reward
 
     def train(self):
         # Gets called every 10,000 steps to train the various models we're using
-        self.sim_agent.nice_train(self.buffer, self.batch_size)
-        self.wm_model.nice_train(self.buffer, self.batch_size)
-        self.reward_agent.nice_train(self.buffer, self.batch_size)
+        self.sim_model.train(self.buffer, self.batch_size, epochs=self.epochs, steps_pe=self.steps_per_epoch)
+        self.wm_model.train(self.buffer, self.batch_size, self.prep_model, epochs=self.epochs, steps_pe=self.steps_per_epoch)
+        self.reward_model.train(self.buffer, self.batch_size, epochs=self.epochs, steps_pe=self.steps_per_epoch)
