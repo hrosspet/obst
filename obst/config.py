@@ -1,5 +1,5 @@
 from obst.env import OneHot1DWorld, OneHot1DCyclicWorld, My2DWorld, Visualizing2DWorld
-from obst.agent import NewExplorationAgent, CuriousExplorationAgent, RewardExplorationAgent, SimBufferedKerasAgent, WorldModelBufferedKerasAgent, RewardPredictBufferedKerasAgent
+from obst.agent import ExplorationAgent
 
 CONFIG = {
     'TIME_FORMAT': '%Y-%m-%d %H:%M:%S',
@@ -11,9 +11,7 @@ CONFIG = {
         }
     },
     'AGENT': {
-        'CONSTRUCTOR': NewExplorationAgent,
-        # 'CONSTRUCTOR': CuriousExplorationAgent,
-        # 'CONSTRUCTOR': RewardExplorationAgent,
+        'CONSTRUCTOR': ExplorationAgent,
         'PARAMS': {
             'buffer_size': 10000,
             'training_period': 100,
