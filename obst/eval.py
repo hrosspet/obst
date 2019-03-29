@@ -35,23 +35,20 @@ class Eval():
                 plt.savefig('logs/' + datetime.now().strftime("%Y%m%d%H%M%S") + '_steps_' + str(i - self.vis_steps) + '_' + str(i) + '.png')
                 plt.close()
 
-            if i % (self.training_steps // 10) == 0:
+            if i % (self.vis_steps // 5) == 0:
                 logger.info("step {}".format(i))
 
             # get agent's action based on the world observation
             action = self.agent.behave(observation, reward)
 
-            # logger.debug('step %d: action: %d', i, action)
-
             # get world's reaction
             observation, reward, done, _ = self.world.step(action)
-            # logger.debug('step %d: observation: %s, reward: %.2f, done: %d', i, "...", reward, done)
 
             score += reward
 
             if done:
                 logger.debug('reset')
-                self.reset()
+                self.reset(False)
 
         return score
 

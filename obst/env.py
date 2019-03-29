@@ -78,7 +78,7 @@ class OneHot1DCyclicWorld(OneHot1DWorld):
         self.states[-1].neighborhood[0] = self.states[0]
 
 # rewards = [(20, 19), (34, 28), (21, 33)]
-rewards = [(10, 17)]
+rewards = [(16, 18)]
 
 class My2DWorld(World):
     def __init__(self, width, height):
@@ -117,7 +117,8 @@ class My2DWorld(World):
 
         # An arbitary set of numbers that changes for each state
         obs = np.array([math.log(self.agt_x+1), math.log(self.agt_x+1, self.agt_y+2), math.log(self.width - self.agt_x+1, 10), math.log(self.height - self.agt_y+1), math.log(abs(self.agt_y - self.agt_x)+1)])
-        return obs, (1 if (self.agt_x, self.agt_y) in rewards else 0), False, None
+        reward: bool = (self.agt_x, self.agt_y) in rewards
+        return obs, (1 if reward else 0), reward, None  # reset on reward
 
     def reset(self, test):
         self.agt_x = self.width  // 2

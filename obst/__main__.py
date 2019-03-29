@@ -33,6 +33,9 @@ def main(verbosity='INFO', loglevel='INFO', gitdir='.git'):
         logger.warning("Terminated by user.")
     except SystemExit:
         logger.info("Finished.")
+    # finally:
+    #     agent.save_weights('weights/')
+
     logger.info("######### FINISHED #########")
 
 

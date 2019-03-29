@@ -7,7 +7,7 @@ CONFIG = {
         'CONSTRUCTOR': Visualizing2DWorld,
         'PARAMS': {
             # 'size': 1000,
-            'width': 12, 'height': 12,
+            'width': 20, 'height': 20,
         }
     },
     'AGENT': {
@@ -23,7 +23,7 @@ CONFIG = {
             'epochs': 2,
             'lr': 1e-3,
 
-            'mode': 'EXPLORE',  # EXPLORE/EXPLOIT
+            'mode': 'EXPLOIT',  # EXPLORE/EXPLOIT
         }
     },
     'TRAINING_STEPS': 100000,

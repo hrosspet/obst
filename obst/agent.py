@@ -109,11 +109,9 @@ class ExplorationAgent(BufferedAgent):
 
             for action, outcome in candidates_repr.items():
                 candidates_sim[action] = self.sim_model.predict_sim(representation, outcome)
+                candidates_sim[action] += random.uniform(-0.05, 0.05)   # in case all predictions are 0
 
             lowest_sim = min(candidates_sim, key=candidates_sim.get)
-
-            if all(value == 0 for value in candidates_sim.values()):     # If they're all 0s then chose a random action so we at least get some useful training data
-                lowest_sim = random.randint(0, self.n_actions - 1)
 
             for action, sim in candidates_sim.items():
                 logger.debug('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_repr[action], sim, '*' if action == lowest_sim else ''))
@@ -125,12 +123,10 @@ class ExplorationAgent(BufferedAgent):
             candidates_reward = {}  # {action, predicted_reward}
 
             for action, outcome in candidates_repr.items():
-                candidates_reward[action] = self.reward_agent.predict(observation)
+                candidates_reward[action] = self.reward_model.predict_rew(observation)
+                candidates_reward[action] += random.uniform(-0.05, 0.05)    # in case all predictions are 0
 
             highest_reward = max(candidates_reward, key=candidates_reward.get)
-
-            if all(value == 0 for value in candidates_reward.values()):     # If they're all 0s then chose a random action so we at least get some useful training data
-                highest_reward = random.randint(0, self.n_actions - 1)
 
             for action, pred_reward in candidates_reward.items():
                 logger.debug('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_repr[action], pred_reward, '*' if action == highest_reward else ''))
@@ -142,3 +138,7 @@ class ExplorationAgent(BufferedAgent):
         self.sim_model.train(self.buffer, self.batch_size, epochs=self.epochs, steps_pe=self.steps_per_epoch)
         self.wm_model.train(self.buffer, self.batch_size, self.prep_model, epochs=self.epochs, steps_pe=self.steps_per_epoch)
         self.reward_model.train(self.buffer, self.batch_size, epochs=self.epochs, steps_pe=self.steps_per_epoch)
+
+    # def save_weights(self, directory):
+    #     self.prep_layers.save('%/shared_layers.h5' % directory)
+    #     self.sim_model.save('%/.h5' % directory)

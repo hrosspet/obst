@@ -151,17 +151,17 @@ class WMModel():
 class RewardModel():
     def __init__(self, prep_layers, obs_size=None, repr_size=None):
         # Create the special layers
-        rew_layers  = RewardModel.create_layers(repr_size=repr_size)
+        self.rew_layers  = RewardModel.create_layers(repr_size=repr_size)
 
         # Create the two models that use them
-        self.train_model = self.create_train_model(prep_layers, rew_layers, obs_size, repr_size)
-        self.use_model   = self.create_use_model(rew_layers, repr_size)
+        self.train_model = self.create_train_model(prep_layers, self.rew_layers, obs_size, repr_size)
+        self.use_model   = self.create_use_model(self.rew_layers, repr_size)
 
     def create_train_model(self, prep_layers, rew_layers, obs_size, repr_size):
         input_obs = Input(shape=(obs_size,))
         _repr = prep_layers(input_obs)
 
-        rew = rew_layers(_repr)
+        rew = self.rew_layers(_repr)
 
         train_model = Model(inputs=input_obs, outputs=rew)
         train_model.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
@@ -170,7 +170,7 @@ class RewardModel():
     def create_use_model(self, rew_layers, repr_size):
         _repr = Input(shape=(repr_size,))
 
-        rew = rew_layers(_repr)
+        rew = self.rew_layers(_repr)
 
         return Model(inputs=_repr, outputs=rew)
 
