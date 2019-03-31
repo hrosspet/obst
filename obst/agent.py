@@ -14,6 +14,7 @@ from obst.models import PreprocessModel, SimModel, WMModel, RewardModel
 class AgentMode(Enum):
     EXPLORE = 0
     EXPLOIT = 1
+    RANDOM  = 2
 
 class AbstractAgent(ABC):
     @abstractmethod
@@ -49,8 +50,9 @@ class BufferedAgent(AbstractAgent):
         pass
 
     def reset(self):
-        self.buffer.clear()   # = []    # We have to use clear() so that
-        self.step = 0
+        # self.buffer.clear()   # = []    # We have to use clear() so that
+        # self.step = 0
+        pass
 
     def observe(self, observation):
         self.step += 1
@@ -80,9 +82,10 @@ class ExplorationAgent(BufferedAgent):
     def __init__(self, mode, buffer_size, training_period, n_actions, obs_size, repr_size, batch_size, steps_per_epoch, epochs, lr=None):
         super().__init__(buffer_size, training_period, n_actions)
 
-        self.mode = AgentMode[mode] # parses the string as an enum
+        self.mode = AgentMode.RANDOM#AgentMode[mode] # parses the string as an enum
         self.repr_size = repr_size
         self.obs_size = obs_size
+
         self.batch_size = batch_size
         self.steps_per_epoch = steps_per_epoch
         self.epochs = epochs
@@ -90,6 +93,7 @@ class ExplorationAgent(BufferedAgent):
         # Create models
         self.prep_layers = PreprocessModel.create_layers(obs_size, repr_size)
         self.prep_model  = PreprocessModel(self.prep_layers, obs_size)
+        # self.prep_model.nonzero_init()
 
         self.sim_model = SimModel(self.prep_layers, obs_size, repr_size)
         self.wm_model  = WMModel(self.prep_layers, obs_size, repr_size)
@@ -109,35 +113,48 @@ class ExplorationAgent(BufferedAgent):
 
             for action, outcome in candidates_repr.items():
                 candidates_sim[action] = self.sim_model.predict_sim(representation, outcome)
-                candidates_sim[action] += random.uniform(-0.05, 0.05)   # in case all predictions are 0
+                candidates_sim[action] += random.uniform(0, 0.05)   # in case all predictions are 0
 
             lowest_sim = min(candidates_sim, key=candidates_sim.get)
+            if candidates_sim[lowest_sim] == 0: lowest_sim = random.randint(0, self.n_actions-1)
 
             for action, sim in candidates_sim.items():
-                logger.debug('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_repr[action], sim, '*' if action == lowest_sim else ''))
+                logger.debug('{}: {}  {}\t->\t{}\t ({}) {}'.format(action, observation, representation, candidates_repr[action], sim, '*' if action == lowest_sim else ''))
 
             return lowest_sim
 
-        elif self.mode == AgentMode.EXPLOIT:
+        if self.mode == AgentMode.EXPLOIT:
             # Find the one with the highest reward
             candidates_reward = {}  # {action, predicted_reward}
 
             for action, outcome in candidates_repr.items():
-                candidates_reward[action] = self.reward_model.predict_rew(representation)
-                candidates_reward[action] += random.uniform(-0.05, 0.05)    # in case all predictions are 0
+                candidates_reward[action] = self.reward_model.predict_rew(outcome)
+                candidates_reward[action] += random.uniform(0, 0.05)    # in case all predictions are 0
 
             highest_reward = max(candidates_reward, key=candidates_reward.get)
 
             for action, pred_reward in candidates_reward.items():
-                logger.debug('{}: {}\t->\t{}\t ({}) {}'.format(action, observation, candidates_repr[action], pred_reward, '*' if action == highest_reward else ''))
+                logger.debug('{}: {}  {}\t->\t{}\t ({}) {}'.format(action, observation, representation, candidates_repr[action], pred_reward, '*' if action == highest_reward else ''))
 
             return highest_reward
 
+        if self.mode == AgentMode.RANDOM:
+            return random.randint(0, self.n_actions - 1)
+
     def train(self):
+        import pdb;pdb.set_trace()
         # Gets called every 10,000 steps to train the various models we're using
         self.sim_model.train(self.buffer, self.batch_size, epochs=self.epochs, steps_pe=self.steps_per_epoch)
         self.wm_model.train(self.buffer, self.batch_size, self.prep_model, epochs=self.epochs, steps_pe=self.steps_per_epoch)
         self.reward_model.train(self.buffer, self.batch_size, epochs=self.epochs, steps_pe=self.steps_per_epoch)
+
+        if self.mode == AgentMode.RANDOM:
+            logger.info('Switching from RANDOM to EXPLORE mode.')
+
+            self.mode = AgentMode.EXPLOIT     # Switch to exploration after the initial period of random movement
+            self.training_period = 100
+
+            # self.mode = AgentMode.EXPLORE     # Switch to exploration after the initial period of random movement
 
     # def save_weights(self, directory):
     #     self.prep_layers.save('%/shared_layers.h5' % directory)

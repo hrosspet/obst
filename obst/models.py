@@ -4,8 +4,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+import keras
 from keras.models import Model
-from keras.layers import Input, concatenate, Dense, Dropout, LSTM
+from keras.layers import Input, concatenate, Dense, Dropout, LSTM, GaussianNoise, LeakyReLU, BatchNormalization, Subtract
+from r2_score import r2_score
 
 # Each XxxModel class contains two keras models: a train_model and a use_model
 # The train_model contains the shared layers so that we can train these shared layers with the model. It works on observations.
@@ -29,7 +31,7 @@ class SimModel():
         sim = sim_layers([repr_a, repr_b])
 
         train_model = Model(inputs=[obs_a, obs_b], outputs=sim)
-        train_model.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
+        train_model.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy', r2_score])
         return train_model
 
     def create_use_model(self, sim_layers, repr_size):
@@ -45,36 +47,53 @@ class SimModel():
         repr_a = Input(shape=(repr_size,))
         repr_b = Input(shape=(repr_size,))
 
-        outputs = concatenate([repr_a, repr_b])
-        outputs = Dense(repr_size // 2, activation='relu')(outputs)
+        # outputs = concatenate([repr_a, repr_b])
+        outputs = Subtract()([repr_a, repr_b])
+        outputs = Dense(repr_size // 2)(outputs)
         outputs = Dense(1, activation='relu')(outputs)
+        # outputs = LeakyReLU(alpha=0.1)(outputs)
 
         return Model(inputs=[repr_a, repr_b], outputs=outputs)
 
     def get_train_data_gen(self, buffer, batch_size):
         while True:
-            half_batch = batch_size // 2
-            idx = np.random.randint(0, len(buffer) - 1, 3 * half_batch)
-            similar_idx = idx[:half_batch]
-            dissimilar_idx_0 = idx[half_batch:half_batch*2]
-            dissimilar_idx_1 = idx[half_batch*2:]
+            third_batch = batch_size // 3
+            idx = np.random.randint(0, len(buffer) - 1, 4 * third_batch)
+            similar_idx = idx[:third_batch]
+            dissimilar_idx_0 = idx[third_batch:third_batch*2]
+            dissimilar_idx_1 = idx[third_batch*2:third_batch*3]
+            same_idx = idx[third_batch*3:]
             data = np.array([observation for observation, reward, decision in buffer])
 
-            data_x_a = np.zeros((batch_size, data.shape[-1]))
-            data_x_b = np.zeros((batch_size, data.shape[-1]))
-            data_y = np.zeros((batch_size, 1))
+            data_x_a = np.zeros((third_batch*3, data.shape[-1]))
+            data_x_b = np.zeros((third_batch*3, data.shape[-1]))
+            data_y = np.zeros((third_batch*3, 1))
+
+            # fill in same samples
+            data_x_a[:third_batch, :] = data[same_idx, :]
+            data_x_b[:third_batch, :] = data[same_idx, :]
+
+            data_y[:third_batch] = 1
 
             # fill in similar samples
-            data_x_a[:half_batch, :] = data[similar_idx, :]
-            data_x_b[:half_batch, :] = data[similar_idx+1, :]
+            data_x_a[third_batch:third_batch*2, :] = data[similar_idx, :]
+            data_x_b[third_batch:third_batch*2, :] = data[similar_idx+1, :]
 
-            data_y[:half_batch] = 1
+            data_y[third_batch:third_batch*2] = 1
 
             # fill in dissimilar samples
-            data_x_a[half_batch:, :] = data[dissimilar_idx_0, :]
-            data_x_b[half_batch:, :] = data[dissimilar_idx_1, :]
+            data_x_a[third_batch*2:, :] = data[dissimilar_idx_0, :]
+            data_x_b[third_batch*2:, :] = data[dissimilar_idx_1, :]
 
-            yield [data_x_a, data_x_b], data_y
+            new_data_x_b, new_data_x_a = data_x_a.copy(), data_x_b.copy()
+            new_data_y = data_y.copy()
+            def shuffled(l): random.shuffle(l);return l
+            for i, new_idx in enumerate(shuffled(list(range(len(data_y))))):
+                new_data_x_a[i] = data_x_a[new_idx]
+                new_data_x_b[i] = data_x_b[new_idx]
+                new_data_y[i] = data_y[new_idx]
+
+            yield [new_data_x_a, new_data_x_b], new_data_y
 
     def train(self, buffer, batch_size, epochs=None, steps_pe=None):
         logger.info("Training {}...".format(self.__class__.__name__))
@@ -101,7 +120,7 @@ class WMModel():
         wm = wm_layers([start_repr, action])#({'start_repr': self.prep_layers, 'wm_action': action})
 
         train_model = Model(inputs=[start_obs, action], outputs=wm)
-        train_model.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
+        train_model.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy', r2_score])
         return train_model
 
     def create_use_model(self, wm_layers, repr_size):
@@ -119,7 +138,8 @@ class WMModel():
 
         outputs = concatenate([start_repr, action])
         outputs = Dense(repr_size, activation='relu')(outputs)
-        outputs = Dense(repr_size, activation='relu')(outputs)
+        outputs = Dense(repr_size)(outputs)
+        outputs = LeakyReLU(alpha=0.2)(outputs)
 
         return Model(inputs=[start_repr, action], outputs=outputs)
 
@@ -164,7 +184,7 @@ class RewardModel():
         rew = self.rew_layers(_repr)
 
         train_model = Model(inputs=input_obs, outputs=rew)
-        train_model.compile(loss='mse', optimizer='rmsprop', metrics=['acc'])
+        train_model.compile(loss='mse', optimizer=keras.optimizers.Adam(lr=1e-6), metrics=['accuracy', r2_score])
         return train_model
 
     def create_use_model(self, rew_layers, repr_size):
@@ -178,7 +198,7 @@ class RewardModel():
     def create_layers(repr_size=None):
         inputs  = Input(shape=(repr_size,))
 
-        outputs = Dense(repr_size, activation='relu')(inputs)
+        outputs = Dense(repr_size, activation='relu', W_regularizer=keras.regularizers.l2(0.02))(inputs)
         outputs = Dense(1, activation='relu')(outputs)
 
         return Model(inputs=inputs, outputs=outputs)
@@ -201,6 +221,7 @@ class RewardModel():
             yield data_x, data_y
 
     def train(self, buffer, batch_size, epochs=None, steps_pe=None):
+        print(len([x for x in buffer if x[1] != 0]))
         if len([x for x in buffer if x[1] != 0]) != 0:  # If we've actually got some rewards in buffer to train on
             logger.info("Training {}...".format(self.__class__.__name__))
             self.train_model.fit_generator(self.get_train_data_gen(buffer, batch_size), steps_per_epoch=steps_pe, epochs=epochs)
@@ -211,6 +232,7 @@ class RewardModel():
 class PreprocessModel():
     def __init__(self, prep_layers, obs_size=None):
         # Create a simple model that does observation -> inner_representation
+
         input_obs = Input(shape=(obs_size,))
         output_repr = prep_layers(input_obs)
 
@@ -219,11 +241,23 @@ class PreprocessModel():
     def get_repr(self, observation):
         return self.model.predict(np.array([observation]))[0]
 
+    def nonzero_init(self):
+        self.model.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy', r2_score])
+
+        def rndgen():
+            while True:
+                yield 5*np.random.random_sample((32, self.model.input_shape[-1])), 5*np.random.random_sample((32, self.model.output_shape[-1]))
+
+        logger.info('initializing prep layers')
+        self.model.fit_generator(rndgen(), steps_per_epoch=1000, epochs=1)
+
     @staticmethod
     def create_layers(obs_size=None, repr_size=None):
         inputs  = Input(shape=(obs_size,))
 
         outputs = Dense((obs_size + repr_size) // 2, activation='relu')(inputs)
-        outputs = Dense(repr_size, activation='relu')(outputs)
+        outputs = Dense(repr_size)(outputs)
+        outputs = LeakyReLU(alpha=0.1)(outputs)
+        # outputs = GaussianNoise(0.1)(outputs)
 
         return Model(inputs=inputs, outputs=outputs)

@@ -7,7 +7,8 @@ CONFIG = {
         'CONSTRUCTOR': Visualizing2DWorld,
         'PARAMS': {
             # 'size': 1000,
-            'width': 20, 'height': 20,
+            'width': 12, 'height': 12,
+            'cyclic': False
         }
     },
     'AGENT': {
@@ -16,14 +17,14 @@ CONFIG = {
             'buffer_size': 10000,
             'training_period': 1000,
             'n_actions': 4,
-            'obs_size': 5,     # size of input observation
-            'repr_size': 3,    # size of internal representation
-            'batch_size': 32,
+            'obs_size': 2,     # size of input observation
+            'repr_size': 4,    # size of internal representation
+            'batch_size': 100,
             'steps_per_epoch': 1000,
             'epochs': 2,
             'lr': 1e-3,
 
-            'mode': 'EXPLOIT',  # EXPLORE/EXPLOIT
+            'mode': 'EXPLORE',  # EXPLORE/EXPLOIT
         }
     },
     'TRAINING_STEPS': 100000,

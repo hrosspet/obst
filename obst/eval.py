@@ -24,25 +24,25 @@ class Eval():
         self.reset(test)
 
         score = 0
+        reward = 0
+        action = 0
 
-        observation = np.zeros(5)#self.world.state.observation
-        reward      = 0#self.world.state.reward
+        for step in range(n_steps):
+            # get world's reaction
+            observation, reward, done, _ = self.world.step(action, step_no=step)
 
-        for i in range(n_steps):
             # Plot the agent's movements if it's time
-            if i % self.vis_steps == 0:
-                self.world.plot_actions()
-                plt.savefig('logs/' + datetime.now().strftime("%Y%m%d%H%M%S") + '_steps_' + str(i - self.vis_steps) + '_' + str(i) + '.png')
+            if step % self.vis_steps == 0:
+                plt.figure(figsize=(16, 4.8))
+                self.world.plot()
+                plt.savefig('logs/' + datetime.now().strftime("%Y%m%d%H%M%S") + '_steps_' + str(step - self.vis_steps) + '_' + str(step) + '.png')
                 plt.close()
 
-            if i % (self.vis_steps // 5) == 0:
-                logger.info("step {}".format(i))
+            if step % (self.vis_steps // 5) == 0:
+                logger.info("step {} rewards {}".format(step, self.world.reset_log))
 
             # get agent's action based on the world observation
             action = self.agent.behave(observation, reward)
-
-            # get world's reaction
-            observation, reward, done, _ = self.world.step(action)
 
             score += reward
 
