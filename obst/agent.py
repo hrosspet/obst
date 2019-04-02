@@ -142,7 +142,7 @@ class ExplorationAgent(BufferedAgent):
             return random.randint(0, self.n_actions - 1)
 
     def train(self):
-        import pdb;pdb.set_trace()
+        # import pdb;pdb.set_trace()
         # Gets called every 10,000 steps to train the various models we're using
         self.sim_model.train(self.buffer, self.batch_size, epochs=self.epochs, steps_pe=self.steps_per_epoch)
         self.wm_model.train(self.buffer, self.batch_size, self.prep_model, epochs=self.epochs, steps_pe=self.steps_per_epoch)

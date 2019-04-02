@@ -31,7 +31,7 @@ class SimModel():
         sim = sim_layers([repr_a, repr_b])
 
         train_model = Model(inputs=[obs_a, obs_b], outputs=sim)
-        train_model.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy', r2_score])
+        train_model.compile(loss='mse', optimizer=keras.optimizers.Adam(lr=1e-4), metrics=['accuracy', r2_score])
         return train_model
 
     def create_use_model(self, sim_layers, repr_size):
@@ -184,7 +184,7 @@ class RewardModel():
         rew = self.rew_layers(_repr)
 
         train_model = Model(inputs=input_obs, outputs=rew)
-        train_model.compile(loss='mse', optimizer=keras.optimizers.Adam(lr=1e-6), metrics=['accuracy', r2_score])
+        train_model.compile(loss='mse', optimizer=keras.optimizers.Adam(lr=1e-4), metrics=['accuracy', r2_score])
         return train_model
 
     def create_use_model(self, rew_layers, repr_size):
