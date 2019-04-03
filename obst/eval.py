@@ -17,7 +17,7 @@ class Eval():
         self.test_score = 0
 
     def reset(self, test):
-        self.world.reset(test)
+        self.world.reset()
         self.agent.reset()
 
     def eval(self, n_steps, test=False):
@@ -29,17 +29,17 @@ class Eval():
 
         for step in range(n_steps):
             # get world's reaction
-            observation, reward, done, _ = self.world.step(action, step_no=step)
+            observation, reward, done, _ = self.world.step(action)
 
             # Plot the agent's movements if it's time
-            if step % self.vis_steps == 0:
+            if self.world.__class__.__name__ == 'Visualizing2DWorld' and step % self.vis_steps == 0:
                 plt.figure(figsize=(16, 4.8))
                 self.world.plot()
                 plt.savefig('logs/' + datetime.now().strftime("%Y%m%d%H%M%S") + '_steps_' + str(step - self.vis_steps) + '_' + str(step) + '.png')
                 plt.close()
 
             if step % (self.vis_steps // 5) == 0:
-                logger.info("step {} rewards {}".format(step, self.world.reset_log))
+                logger.info("step {}".format(step))
 
             # get agent's action based on the world observation
             action = self.agent.behave(observation, reward)

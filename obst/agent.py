@@ -79,7 +79,7 @@ class BufferedAgent(AbstractAgent):
 #
 
 class ExplorationAgent(BufferedAgent):
-    def __init__(self, mode, buffer_size, training_period, n_actions, obs_size, repr_size, batch_size, steps_per_epoch, epochs, lr=None):
+    def __init__(self, mode, prep_model, buffer_size, training_period, n_actions, obs_size, repr_size, batch_size, steps_per_epoch, epochs, lr=None):
         super().__init__(buffer_size, training_period, n_actions)
 
         self.mode = AgentMode.RANDOM#AgentMode[mode] # parses the string as an enum
@@ -91,9 +91,8 @@ class ExplorationAgent(BufferedAgent):
         self.epochs = epochs
 
         # Create models
-        self.prep_layers = PreprocessModel.create_layers(obs_size, repr_size)
-        self.prep_model  = PreprocessModel(self.prep_layers, obs_size)
-        # self.prep_model.nonzero_init()
+        self.prep_layers = prep_model.create_layers(obs_size, repr_size)
+        self.prep_model  = prep_model(self.prep_layers, obs_size)
 
         self.sim_model = SimModel(self.prep_layers, obs_size, repr_size)
         self.wm_model  = WMModel(self.prep_layers, obs_size, repr_size)
@@ -116,7 +115,6 @@ class ExplorationAgent(BufferedAgent):
                 candidates_sim[action] += random.uniform(0, 0.05)   # in case all predictions are 0
 
             lowest_sim = min(candidates_sim, key=candidates_sim.get)
-            if candidates_sim[lowest_sim] == 0: lowest_sim = random.randint(0, self.n_actions-1)
 
             for action, sim in candidates_sim.items():
                 logger.debug('{}: {}  {}\t->\t{}\t ({}) {}'.format(action, observation, representation, candidates_repr[action], sim, '*' if action == lowest_sim else ''))

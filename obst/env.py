@@ -34,6 +34,12 @@ class World(ABC):
     def reset(self):
         self.__init__()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
+
 REWARD_IDX = 763
 
 class OneHot1DWorld(World):
@@ -121,7 +127,7 @@ class My2DWorld(World):
         reward: bool = (self.agt_x, self.agt_y) in rewards
         return obs, (1 if reward else 0), reward, None  # reset on reward
 
-    def reset(self, test):
+    def reset(self, test=False):
         self.agt_x = self.width  // 2
         self.agt_y = self.height // 2
 
@@ -140,7 +146,9 @@ class Visualizing2DWorld(My2DWorld):
         self.all_visited_log = []
         self.reset_log = []  # Log every time the world resets
 
-    def step(self, action, step_no=None):
+    def step(self, action):
+        self.step_no += 1
+
         # Save current coordinates
         self.pos_history.append((self.agt_x, self.agt_y))
 
@@ -148,7 +156,7 @@ class Visualizing2DWorld(My2DWorld):
         self.heatmap[self.agt_y, self.agt_x] += 1
 
         if np.min(self.heatmap - self.last_all_visited) != 0:   # If all tiles have been visited since last record
-            self.all_visited_log,append(step_no)
+            self.all_visited_log.append(self.step_no)
             self.last_all_visited = self.heatmap.copy()
             for coords in rewards:
                 self.last_all_visited[coords] += 1     # THe coords of the reward are never visited
@@ -156,7 +164,7 @@ class Visualizing2DWorld(My2DWorld):
         ret = super().step(action)
 
         if ret[2] == True:
-            self.reset_log.append(step_no)
+            self.reset_log.append(self.step_no)
 
         return ret
 

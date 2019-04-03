@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import numpy as np
 import random
 import logging
@@ -6,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 import keras
 from keras.models import Model
-from keras.layers import Input, concatenate, Dense, Dropout, LSTM, GaussianNoise, LeakyReLU, BatchNormalization, Subtract
+from keras.layers import Input, concatenate, Dense, Dropout, LSTM, GaussianNoise, LeakyReLU, BatchNormalization, Subtract, Conv2D, MaxPooling2D, Flatten
 from r2_score import r2_score
 
 # Each XxxModel class contains two keras models: a train_model and a use_model
@@ -23,8 +24,8 @@ class SimModel():
         self.use_model   = self.create_use_model(sim_layers, repr_size)
 
     def create_train_model(self, prep_layers, sim_layers, obs_size, repr_size):
-        obs_a = Input(shape=(obs_size,))
-        obs_b = Input(shape=(obs_size,))
+        obs_a = Input(shape=obs_size)
+        obs_b = Input(shape=obs_size)
         repr_a  = prep_layers(obs_a)
         repr_b  = prep_layers(obs_b)
 
@@ -65,8 +66,9 @@ class SimModel():
             same_idx = idx[third_batch*3:]
             data = np.array([observation for observation, reward, decision in buffer])
 
-            data_x_a = np.zeros((third_batch*3, data.shape[-1]))
-            data_x_b = np.zeros((third_batch*3, data.shape[-1]))
+            # import pdb; pdb.set_trace()
+            data_x_a = np.zeros((third_batch*3, *data.shape[1:]))
+            data_x_b = np.zeros((third_batch*3, *data.shape[1:]))
             data_y = np.zeros((third_batch*3, 1))
 
             # fill in same samples
@@ -112,7 +114,7 @@ class WMModel():
         self.use_model   = self.create_use_model(wm_layers, repr_size)
 
     def create_train_model(self, prep_layers, wm_layers, obs_size, repr_size):
-        start_obs  = Input(shape=(obs_size,), name='start_obs')
+        start_obs  = Input(shape=obs_size, name='start_obs')
         start_repr = prep_layers(start_obs)   # layers that preprocess the start observation.
 
         action = Input(shape=(1,), name='action')
@@ -178,7 +180,7 @@ class RewardModel():
         self.use_model   = self.create_use_model(self.rew_layers, repr_size)
 
     def create_train_model(self, prep_layers, rew_layers, obs_size, repr_size):
-        input_obs = Input(shape=(obs_size,))
+        input_obs = Input(shape=obs_size)
         _repr = prep_layers(input_obs)
 
         rew = self.rew_layers(_repr)
@@ -229,35 +231,58 @@ class RewardModel():
     def predict_rew(self, repres): # -> float (reward)
         return self.use_model.predict(np.array([repres]))[0]
 
-class PreprocessModel():
+# Models that take in an observation and generate intermediate layers
+class PreprocessModel(ABC):
     def __init__(self, prep_layers, obs_size=None):
         # Create a simple model that does observation -> inner_representation
 
-        input_obs = Input(shape=(obs_size,))
+        input_obs = Input(shape=obs_size)
         output_repr = prep_layers(input_obs)
 
         self.model = Model(inputs=input_obs, outputs=output_repr)
 
+    @staticmethod
+    @abstractmethod
+    def create_layers(obs_size=None, repr_size=None) -> Model:
+        pass
+
     def get_repr(self, observation):
         return self.model.predict(np.array([observation]))[0]
 
-    def nonzero_init(self):
-        self.model.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy', r2_score])
 
-        def rndgen():
-            while True:
-                yield 5*np.random.random_sample((32, self.model.input_shape[-1])), 5*np.random.random_sample((32, self.model.output_shape[-1]))
-
-        logger.info('initializing prep layers')
-        self.model.fit_generator(rndgen(), steps_per_epoch=1000, epochs=1)
+class VectorPreprocessModel(PreprocessModel):
+    def __init__(self, prep_layers, obs_size=None):
+        super().__init__(prep_layers, obs_size)
 
     @staticmethod
     def create_layers(obs_size=None, repr_size=None):
-        inputs  = Input(shape=(obs_size,))
+        inputs  = Input(shape=obs_size)
 
-        outputs = Dense((obs_size + repr_size) // 2, activation='relu')(inputs)
+        outputs = Dense(repr_size, activation='relu')(inputs)
         outputs = Dense(repr_size)(outputs)
         outputs = LeakyReLU(alpha=0.1)(outputs)
         # outputs = GaussianNoise(0.1)(outputs)
 
         return Model(inputs=inputs, outputs=outputs)
+
+class ImagePreprocessModel(PreprocessModel):
+    def __init__(self, prep_layers, obs_size=None):
+        super().__init__(prep_layers, obs_size)
+
+    @staticmethod
+    def create_layers(obs_size=None, repr_size=None):
+        inputs  = Input(shape=obs_size)
+
+        outputs = Conv2D(32, kernel_size=(3, 3),
+                         activation='relu')(inputs)
+        outputs = Conv2D(64, (3, 3), activation='relu')(outputs)
+        outputs = MaxPooling2D(pool_size=(2, 2))(outputs)
+        outputs = Dropout(0.25)(outputs)
+        outputs = Flatten()(outputs)
+        outputs = Dense(128, activation='relu')(outputs)
+        outputs = Dropout(0.5)(outputs)
+        outputs = Dense(repr_size, activation='relu')(outputs)
+
+        model=Model(inputs=inputs, outputs=outputs)
+        model.summary()
+        return model
