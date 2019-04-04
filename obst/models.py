@@ -271,16 +271,14 @@ class ImagePreprocessModel(PreprocessModel):
 
     @staticmethod
     def create_layers(obs_size=None, repr_size=None):
-        inputs  = Input(shape=obs_size)
+        inputs = outputs = Input(shape=obs_size)
 
-        outputs = Conv2D(32, kernel_size=(3, 3),
-                         activation='relu')(inputs)
-        outputs = Conv2D(64, (3, 3), activation='relu')(outputs)
-        outputs = MaxPooling2D(pool_size=(2, 2))(outputs)
+        outputs = Conv2D(8, kernel_size=(12, 12), strides=(8, 8), activation='relu')(inputs)  # -> (21, 21, 8)
+        outputs = Conv2D(16, (3, 3), strides=(3, 3), activation='relu')(outputs)    # -> (7, 7, 64)
+        outputs = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(outputs)
         outputs = Dropout(0.25)(outputs)
         outputs = Flatten()(outputs)
         outputs = Dense(128, activation='relu')(outputs)
-        outputs = Dropout(0.5)(outputs)
         outputs = Dense(repr_size, activation='relu')(outputs)
 
         model=Model(inputs=inputs, outputs=outputs)

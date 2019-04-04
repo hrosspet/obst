@@ -52,7 +52,7 @@ class ObstTowerWorld(World):
 
 # The env doesn't close properly on Linux so we have to run it with a different ID each time
 # https://github.com/Unity-Technologies/ml-agents/issues/1505#issuecomment-471936096
-def get_worker_id(filename=".worker_id.dat"):
+def get_worker_id(filename=".worker_id"):
     with open(filename, 'a+') as f:
         f.seek(0)
         val = int(f.read() or 0) + 1

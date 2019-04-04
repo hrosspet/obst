@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 from keras.models import Model
 from keras.layers import Input, Dense, Dropout, LSTM
+from keras import backend as K
 
 from obst.models import PreprocessModel, SimModel, WMModel, RewardModel
 
