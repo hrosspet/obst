@@ -150,10 +150,10 @@ class ExplorationAgent(BufferedAgent):
         if self.mode == AgentMode.RANDOM:
             logger.info('Switching from RANDOM to EXPLORE mode.')
 
-            self.mode = AgentMode.EXPLOIT     # Switch to exploration after the initial period of random movement
+            # self.mode = AgentMode.EXPLOIT     # Switch to exploration after the initial period of random movement
             self.training_period = 100
 
-            # self.mode = AgentMode.EXPLORE     # Switch to exploration after the initial period of random movement
+            self.mode = AgentMode.EXPLORE     # Switch to exploration after the initial period of random movement
 
     # def save_weights(self, directory):
     #     self.prep_layers.save('%/shared_layers.h5' % directory)

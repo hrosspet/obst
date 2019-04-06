@@ -50,7 +50,7 @@ class SimModel():
 
         # outputs = concatenate([repr_a, repr_b])
         outputs = Subtract()([repr_a, repr_b])
-        outputs = Dense(repr_size // 2)(outputs)
+        outputs = Dense(repr_size // 2, activation='relu')(outputs)
         outputs = Dense(1, activation='relu')(outputs)
         # outputs = LeakyReLU(alpha=0.1)(outputs)
 
