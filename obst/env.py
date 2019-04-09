@@ -34,12 +34,6 @@ class World(ABC):
     def reset(self):
         self.__init__()
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type, value, traceback):
-        pass
-
 REWARD_IDX = 763
 
 class OneHot1DWorld(World):

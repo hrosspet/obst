@@ -80,24 +80,20 @@ class BufferedAgent(AbstractAgent):
 #
 
 class ExplorationAgent(BufferedAgent):
-    def __init__(self, mode, prep_model, buffer_size, training_period, n_actions, obs_size, repr_size, batch_size, steps_per_epoch, epochs, lr=None):
+    def __init__(self, mode, prep_model, buffer_size, training_period, n_actions, lsizes, hparams):
         super().__init__(buffer_size, training_period, n_actions)
 
         self.mode = AgentMode.RANDOM#AgentMode[mode] # parses the string as an enum
-        self.repr_size = repr_size
-        self.obs_size = obs_size
-
-        self.batch_size = batch_size
-        self.steps_per_epoch = steps_per_epoch
-        self.epochs = epochs
+        self.lsizes  = lsizes
+        self.hparams = hparams
 
         # Create models
-        self.prep_layers = prep_model.create_layers(obs_size, repr_size)
-        self.prep_model  = prep_model(self.prep_layers, obs_size)
+        self.prep_layers = prep_model.create_layers(lsizes['obs_size'], lsizes['repr_size'])
+        self.prep_model  = prep_model(self.prep_layers, lsizes['obs_size'])
 
-        self.sim_model = SimModel(self.prep_layers, obs_size, repr_size)
-        self.wm_model  = WMModel(self.prep_layers, obs_size, repr_size)
-        self.reward_model = RewardModel(self.prep_layers, obs_size, repr_size)
+        self.sim_model = SimModel(self.prep_layers, lsizes)
+        self.wm_model  = WMModel(self.prep_layers, lsizes)
+        self.reward_model = RewardModel(self.prep_layers, lsizes)
 
     def decide(self, observation, reward):
         representation = self.prep_model.get_repr(observation)
@@ -143,9 +139,9 @@ class ExplorationAgent(BufferedAgent):
     def train(self):
         # import pdb;pdb.set_trace()
         # Gets called every 10,000 steps to train the various models we're using
-        self.sim_model.train(self.buffer, self.batch_size, epochs=self.epochs, steps_pe=self.steps_per_epoch)
-        self.wm_model.train(self.buffer, self.batch_size, self.prep_model, epochs=self.epochs, steps_pe=self.steps_per_epoch)
-        self.reward_model.train(self.buffer, self.batch_size, epochs=self.epochs, steps_pe=self.steps_per_epoch)
+        self.sim_model.train(self.buffer, self.hparams)
+        self.wm_model.train(self.buffer, self.prep_model, self.hparams)
+        self.reward_model.train(self.buffer, self.hparams)
 
         if self.mode == AgentMode.RANDOM:
             logger.info('Switching from RANDOM to EXPLORE mode.')

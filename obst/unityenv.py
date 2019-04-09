@@ -12,10 +12,7 @@ class ObstTowerWorld(World):
         # as well as whether the environment will run at realtime speed. Set this to `True`
         # to visual the agent behavior as you would in player mode.
 
-        self.env = ObstacleTowerEnv(path, retro=False, realtime_mode=False, worker_id=get_worker_id())
-
-    def __exit__(self, type, value, traceback):
-        self.env.close()
+        self.env = ObstacleTowerEnv(path, retro=False, realtime_mode=True, worker_id=get_worker_id())
 
     def step(self, action):
         def compose_act(action):
