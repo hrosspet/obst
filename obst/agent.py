@@ -88,8 +88,9 @@ class ExplorationAgent(BufferedAgent):
         self.hparams = hparams
 
         # Create models
-        self.prep_layers = prep_model.create_layers(lsizes['obs_size'], lsizes['repr_size'])
-        self.prep_model  = prep_model(self.prep_layers, lsizes['obs_size'])
+        self.prep_layers = prep_model.create_layers(lsizes)
+        self.prep_model  = prep_model(self.prep_layers, lsizes)
+        self.prep_layers.trainable = False
 
         self.sim_model = SimModel(self.prep_layers, lsizes)
         self.wm_model  = WMModel(self.prep_layers, lsizes)
@@ -139,9 +140,13 @@ class ExplorationAgent(BufferedAgent):
     def train(self):
         # import pdb;pdb.set_trace()
         # Gets called every 10,000 steps to train the various models we're using
+        if self.prep_model.__class__.__name__ == 'VAEPreprocessModel':
+            self.prep_model.train(self.buffer, self.hparams)
+
         self.sim_model.train(self.buffer, self.hparams)
         self.wm_model.train(self.buffer, self.prep_model, self.hparams)
         self.reward_model.train(self.buffer, self.hparams)
+
 
         if self.mode == AgentMode.RANDOM:
             logger.info('Switching from RANDOM to EXPLORE mode.')

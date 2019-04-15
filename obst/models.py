@@ -7,7 +7,8 @@ logger = logging.getLogger(__name__)
 
 import keras
 from keras.models import Model
-from keras.layers import Input, concatenate, Dense, Dropout, LSTM, GaussianNoise, LeakyReLU, BatchNormalization, Subtract, Conv2D, MaxPooling2D, Flatten
+from keras.layers import Input, Activation, Lambda, concatenate, Dense, Dropout, LSTM, GaussianNoise, LeakyReLU, BatchNormalization, Subtract, Conv2D, Deconvolution2D, MaxPooling2D, Flatten, Reshape, UpSampling2D
+from keras.backend import tf as ktf
 from r2_score import r2_score
 
 # Each Submodel class contains two keras models: a train_model and a use_model
@@ -42,8 +43,12 @@ class Submodel(ABC):
         pass
 
     @abstractmethod
-    def train(self, buffer, hparams):
+    def get_train_data_gen(self, buffer, batch_size):
         pass
+
+    def train(self, buffer, hparams):
+        logger.info("Training {}...".format(self.__class__.__name__))
+        self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size']), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
 
 class SimModel(Submodel):
     def __init__(self, prep_layers, lsizes):
@@ -115,10 +120,6 @@ class SimModel(Submodel):
 
             yield [data_x_a, data_x_b], data_y
 
-    def train(self, buffer, hparams):
-        logger.info("Training {}...".format(self.__class__.__name__))
-        self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size']), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
-
     def predict_sim(self, repr_a, repr_b):
         return self.use_model.predict([np.array([repr_a]), np.array([repr_b])])[0]
 
@@ -175,10 +176,6 @@ class WMModel(Submodel):
             data_y = np.stack(np_buffer[start_idx+1, 0])   # np.stack: numpy array of np arrays -> 2 dimensional np array
             data_y = prep_model.model.predict(data_y)       # Although we get an observation for input, we only generate the inner representation of the outcome observation, so we need to process the outcome observations beforehand. obs + action -> end_repr
             yield [data_x_obs, data_x_act], data_y
-
-    def train(self, buffer, prep_model, hparams):    # We need the prep model so that we can generate our y data from the observations in the buffer.
-        logger.info("Training {}...".format(self.__class__.__name__))
-        self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size'], prep_model), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
 
     def predict_wm(self, start_repr, action): # -> representation of resulting obs
         return self.use_model.predict({'start_repr': np.array([start_repr]), 'action': np.array([action])})[0]
@@ -241,17 +238,29 @@ class RewardModel(Submodel):
 
 # Models that take in an observation and generate intermediate layers
 class PreprocessModel(ABC):
-    def __init__(self, prep_layers, obs_size):
+    """
+    Usage (eg.):
+        img_layers = ImagePreprocessModel.create_layers(...)
+        img_model = ImagePreprocessModel(img_layers, ...)
+
+        img_model.get_repr(my_obs)
+
+    Sometimes you want the layers template without the model.
+    """
+
+    model: Model
+
+    def __init__(self, prep_layers, lsizes):      # Note that the `prep_layers` we will be handed will always be the result of self.create_layers
         # Create a simple model that does observation -> inner_representation
 
-        input_obs = Input(shape=obs_size)
+        input_obs = Input(shape=lsizes['obs_size'])
         output_repr = prep_layers(input_obs)
 
         self.model = Model(inputs=input_obs, outputs=output_repr)
 
     @staticmethod
     @abstractmethod
-    def create_layers(obs_size, repr_size) -> Model:
+    def create_layers(lsizes) -> Model:
         pass
 
     def get_repr(self, observation):
@@ -259,37 +268,94 @@ class PreprocessModel(ABC):
 
 
 class VectorPreprocessModel(PreprocessModel):
-    def __init__(self, prep_layers, obs_size):
-        super().__init__(prep_layers, obs_size)
+    def __init__(self, prep_layers, lsizes):
+        super().__init__(prep_layers, lsizes)
 
     @staticmethod
-    def create_layers(obs_size, repr_size):
-        inputs  = Input(shape=obs_size)
+    def create_layers(lsizes):
+        inputs  = Input(shape=lsizes['obs_size'])
 
-        outputs = Dense(repr_size, activation='relu')(inputs)
-        outputs = Dense(repr_size)(outputs)
+        outputs = Dense(lsizes['repr_size'], activation='relu')(inputs)
+        outputs = Dense(lsizes['repr_size'])(outputs)
         outputs = LeakyReLU(alpha=0.1)(outputs)
         # outputs = GaussianNoise(0.1)(outputs)
 
         return Model(inputs=inputs, outputs=outputs)
 
 class ImagePreprocessModel(PreprocessModel):
-    def __init__(self, prep_layers, obs_size):
-        super().__init__(prep_layers, obs_size)     #
+    def __init__(self, prep_layers, lsizes):
+        super().__init__(prep_layers, lsizes)     #
 
     @staticmethod
-    def create_layers(obs_size, repr_size):
-        inputs = outputs = Input(shape=obs_size)
+    def create_layers(lsizes):
+        inputs = outputs = Input(shape=lsizes['obs_size'])
 
-        outputs = Conv2D(8, kernel_size=(12, 12), strides=(8, 8), activation='relu')(inputs)  # -> (21, 21, 8)
+        outputs = Conv2D(8, kernel_size=(12, 12), strides=(8, 8), activation='relu')(outputs)  # -> (21, 21, 8)
         outputs = Conv2D(16, (3, 3), strides=(3, 3), activation='relu')(outputs)    # -> (7, 7, 64)
         outputs = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))(outputs)
         outputs = Dropout(0.25)(outputs)
         outputs = Flatten()(outputs)
         outputs = Dense(128, activation='relu')(outputs)
-        outputs = Dense(repr_size)(outputs)
+        outputs = Dense(lsizes['repr_size'])(outputs)
         outputs = LeakyReLU(alpha=0.1)(outputs)
 
-        model=Model(inputs=inputs, outputs=outputs)
+        model = Model(inputs=inputs, outputs=outputs)
         model.summary()
         return model
+
+class VAEPreprocessModel(PreprocessModel, Submodel):
+    decoder_model: Model
+
+    def __init__(self, prep_layers, lsizes):
+        super(VAEPreprocessModel, self).__init__(prep_layers, lsizes)
+
+        self.decoder_model = self.create_decoder_layers(lsizes)
+        self.train_model = self.create_train_model(None, lsizes)
+
+    @staticmethod
+    def create_layers(lsizes):
+        return ImagePreprocessModel.create_layers(lsizes)
+
+    @staticmethod
+    def create_decoder_layers(lsizes):
+        inputs = outputs = Input(shape=(lsizes['repr_size'],))
+
+        outputs = Dense(147, activation='relu')(outputs)
+        outputs = Reshape((7, 7, 3))(outputs)
+
+        outputs = Deconvolution2D(16, 8, 8, subsample=(2, 2))(outputs)
+        outputs = BatchNormalization(axis=-1)(outputs)
+        outputs = Activation('relu')(outputs)
+
+        outputs = Conv2D(16, (5, 5), strides=(1, 1), padding='same', activation='relu')(outputs)
+
+        outputs = Deconvolution2D(16, 9, 9, subsample=(3, 3))(outputs)
+        outputs = BatchNormalization(axis=-1)(outputs)
+        outputs = Activation('relu')(outputs)
+
+        outputs = Deconvolution2D(3, 12, 12, subsample=(3, 3))(outputs)
+        outputs = BatchNormalization(axis=-1)(outputs)
+        outputs = Activation('relu')(outputs)
+
+        outputs = Lambda(lambda image: ktf.image.resize_images(image, (168, 168)))(outputs)
+
+        model = Model(inputs=inputs, outputs=outputs)
+        model.summary()
+        return model
+
+    def create_use_model(self, lsizes):
+        pass
+
+    def create_train_model(self, prep_layers, lsizes):
+        in_img = Input(shape=lsizes['obs_size'])
+        enc_layers = self.model(in_img)
+        dec_layers = self.decoder_model(enc_layers)
+
+        train_model = Model(inputs=in_img, outputs=dec_layers)
+        train_model.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy', r2_score])
+        return train_model
+
+    def get_train_data_gen(self, buffer, batch_size):
+        while True:
+            data_x = data_y = np.array([obs for obs, rew, act in [random.choice(buffer) for _ in range(batch_size)]])
+            yield data_x, data_y
