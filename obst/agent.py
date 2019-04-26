@@ -13,9 +13,9 @@ from keras import backend as K
 from obst.models import PreprocessModel, SimModel, WMModel, RewardModel
 
 class AgentMode(Enum):
-    EXPLORE = 0
-    EXPLOIT = 1
-    RANDOM  = 2
+    RANDOM  = 0
+    EXPLORE = 1
+    EXPLOIT = 2
 
 class AbstractAgent(ABC):
     @abstractmethod
@@ -80,23 +80,23 @@ class BufferedAgent(AbstractAgent):
 #
 
 class ExplorationAgent(BufferedAgent):
-    def __init__(self, mode, prep_model, buffer_size, training_period, n_actions, lsizes, hparams):
+    def __init__(self, mode, repr_model, buffer_size, training_period, n_actions, dims, hparams):
         super().__init__(buffer_size, training_period, n_actions)
 
         self.mode = AgentMode.RANDOM#AgentMode[mode] # parses the string as an enum
-        self.lsizes  = lsizes
+        self.dims  = dims
         self.hparams = hparams
 
         # Create models
-        self.prep_layers = prep_model.create_layers(lsizes['obs_size'], lsizes['repr_size'])
-        self.prep_model  = prep_model(self.prep_layers, lsizes['obs_size'])
+        self.repr_layers = repr_model.create_layers(dims['obs_size'], dims['repr_size'])
+        self.repr_model  = repr_model(self.repr_layers, dims['obs_size'])
 
-        self.sim_model = SimModel(self.prep_layers, lsizes)
-        self.wm_model  = WMModel(self.prep_layers, lsizes)
-        self.reward_model = RewardModel(self.prep_layers, lsizes)
+        self.sim_model = SimModel(self.repr_layers, dims)
+        self.wm_model  = WMModel(self.repr_layers, dims)
+        self.reward_model = RewardModel(self.repr_layers, dims)
 
     def decide(self, observation, reward):
-        representation = self.prep_model.get_repr(observation)
+        representation = self.repr_model.get_repr(observation)
         candidates_repr = {}     # {action, predicted_repr}
 
         # Predict the observation for each action
@@ -140,7 +140,7 @@ class ExplorationAgent(BufferedAgent):
         # import pdb;pdb.set_trace()
         # Gets called every 10,000 steps to train the various models we're using
         self.sim_model.train(self.buffer, self.hparams)
-        self.wm_model.train(self.buffer, self.prep_model, self.hparams)
+        self.wm_model.train(self.buffer, self.repr_model, self.hparams)
         self.reward_model.train(self.buffer, self.hparams)
 
         if self.mode == AgentMode.RANDOM:
@@ -152,5 +152,5 @@ class ExplorationAgent(BufferedAgent):
             self.mode = AgentMode.EXPLORE     # Switch to exploration after the initial period of random movement
 
     # def save_weights(self, directory):
-    #     self.prep_layers.save('%/shared_layers.h5' % directory)
+    #     self.repr_layers.save('%/shared_layers.h5' % directory)
     #     self.sim_model.save('%/.h5' % directory)

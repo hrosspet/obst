@@ -8,8 +8,8 @@ TEST_STEPS = CONFIG['TEST_STEPS']
 
 def main(verbosity='INFO', loglevel='INFO', gitdir='.git'):
     try:
-        world = CONFIG['WORLD']['CONSTRUCTOR'](**CONFIG['WORLD']['PARAMS'])
-        agent = CONFIG['AGENT']['CONSTRUCTOR'](**CONFIG['AGENT']['PARAMS'])
+        world = CONFIG['WORLD']['constructor'](**CONFIG['WORLD']['ctor_params'])
+        agent = CONFIG['AGENT']['constructor'](dims=CONFIG['WORLD']['dims'], repr_model=CONFIG['WORLD']['repr_model'], **CONFIG['AGENT']['ctor_params'])
         evaluation = Eval(world, agent, training_steps=TRAINING_STEPS, test_steps=TEST_STEPS, vis_steps=CONFIG['VISUALIZE_STEPS'])
 
         run_name = '_'.join([world.__class__.__name__, agent.__class__.__name__])

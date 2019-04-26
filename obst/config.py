@@ -3,22 +3,40 @@ from obst.models import VectorPreprocessModel, ImagePreprocessModel
 from obst.unityenv import ObstTowerWorld
 from obst.agent import ExplorationAgent
 
+Visualizing2DWorld_config = {
+   'constructor': Visualizing2DWorld,
+   'ctor_params': {
+       'width': 12, 'height': 12,
+       'cyclic': False
+   },
+
+   'repr_model': VectorPreprocessModel,     # The model that processes this world's observation data
+   'dims': {                                #
+       'obs_size': (5,),
+       'repr_size': 4,
+   }
+}
+
+ObstTowerWorld_config = {
+    'constructor': ObstTowerWorld,
+    'ctor_params': {
+        'path': '/opt/ObstacleTower/obstacletower.x86_64'
+    },
+
+    'repr_model': ImagePreprocessModel,
+    'dims': {
+        'obs_size': (168, 168, 3),
+        'repr_size': 16,
+    }
+}
+
 CONFIG = {
     'TIME_FORMAT': '%Y-%m-%d %H:%M:%S',
-    'WORLD': {
-       'CONSTRUCTOR': Visualizing2DWorld,
-       'PARAMS': {
-           'width': 12, 'height': 12,
-           'cyclic': False
-       }
-        # 'CONSTRUCTOR': ObstTowerWorld,
-        # 'PARAMS': {
-        #     'path': '/opt/ObstacleTower/obstacletower.x86_64'
-        # }
-    },
+    'WORLD': Visualizing2DWorld_config,
+    # 'WORLD': ObstTowerWorld_config,
     'AGENT': {
-        'CONSTRUCTOR': ExplorationAgent,
-        'PARAMS': {
+        'constructor': ExplorationAgent,
+        'ctor_params': {
             'mode': 'EXPLORE',  # EXPLORE/EXPLOIT
 
             'training_period': 100,
@@ -31,16 +49,6 @@ CONFIG = {
                 'batch_size': 32,
 
                 'lr': 1e-3,
-            },
-
-           'prep_model': VectorPreprocessModel,
-            # 'prep_model': ImagePreprocessModel,
-
-            'lsizes': {                             # layer sizes
-                'obs_size': (5,),
-                'repr_size': 4,
-                # 'obs_size': (168, 168, 3),
-                # 'repr_size': 16,
             },
         }
     },

@@ -20,25 +20,25 @@ class Submodel(ABC):
 
     unique_layers: Model
 
-    def __init__(self, prep_layers, lsizes):
+    def __init__(self, repr_layers, dims):
         # Layers unique to this model
-        self.unique_layers = self.create_layers(lsizes)    # These are shared between the train_ and use_model
+        self.unique_layers = self.create_layers(dims)    # These are shared between the train_ and use_model
 
         # Create the two models that use them
-        self.use_model   = self.create_use_model(lsizes)
-        self.train_model = self.create_train_model(prep_layers, lsizes)
+        self.use_model   = self.create_use_model(dims)
+        self.train_model = self.create_train_model(repr_layers, dims)
 
     @abstractmethod
-    def create_use_model(self, lsizes) -> Model:
+    def create_use_model(self, dims) -> Model:
         pass
 
     @abstractmethod
-    def create_train_model(self, prep_layers, lsizes) -> Model:
+    def create_train_model(self, repr_layers, dims) -> Model:
         pass
 
     @staticmethod
     @abstractmethod
-    def create_layers(lsizes) -> Model:
+    def create_layers(dims) -> Model:
         pass
 
     @abstractmethod
@@ -46,14 +46,14 @@ class Submodel(ABC):
         pass
 
 class SimModel(Submodel):
-    def __init__(self, prep_layers, lsizes):
-        super().__init__(prep_layers, lsizes)
+    def __init__(self, repr_layers, dims):
+        super().__init__(repr_layers, dims)
 
-    def create_train_model(self, prep_layers, lsizes):
-        obs_a = Input(shape=lsizes['obs_size'])
-        obs_b = Input(shape=lsizes['obs_size'])
-        repr_a  = prep_layers(obs_a)
-        repr_b  = prep_layers(obs_b)
+    def create_train_model(self, repr_layers, dims):
+        obs_a = Input(shape=dims['obs_size'])
+        obs_b = Input(shape=dims['obs_size'])
+        repr_a  = repr_layers(obs_a)
+        repr_b  = repr_layers(obs_b)
 
         sim = self.unique_layers([repr_a, repr_b])
 
@@ -61,22 +61,22 @@ class SimModel(Submodel):
         train_model.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy', r2_score])
         return train_model
 
-    def create_use_model(self, lsizes):
-        repr_a = Input(shape=(lsizes['repr_size'],))
-        repr_b = Input(shape=(lsizes['repr_size'],))
+    def create_use_model(self, dims):
+        repr_a = Input(shape=(dims['repr_size'],))
+        repr_b = Input(shape=(dims['repr_size'],))
 
         sim = self.unique_layers([repr_a, repr_b])
 
         return Model(inputs=[repr_a, repr_b], outputs=sim)
 
     @staticmethod
-    def create_layers(lsizes):
-        repr_a = Input(shape=(lsizes['repr_size'],))
-        repr_b = Input(shape=(lsizes['repr_size'],))
+    def create_layers(dims):
+        repr_a = Input(shape=(dims['repr_size'],))
+        repr_b = Input(shape=(dims['repr_size'],))
 
         # outputs = concatenate([repr_a, repr_b])
         outputs = Subtract()([repr_a, repr_b])
-        outputs = Dense(lsizes['repr_size'] // 2, activation='relu')(outputs)
+        outputs = Dense(dims['repr_size'] // 2, activation='relu')(outputs)
         outputs = Dense(1, activation='relu')(outputs)
         # outputs = LeakyReLU(alpha=0.1)(outputs)
 
@@ -123,42 +123,42 @@ class SimModel(Submodel):
         return self.use_model.predict([np.array([repr_a]), np.array([repr_b])])[0]
 
 class WMModel(Submodel):
-    def __init__(self, prep_layers, lsizes):
-        super().__init__(prep_layers, lsizes)
+    def __init__(self, repr_layers, dims):
+        super().__init__(repr_layers, dims)
 
-    def create_train_model(self, prep_layers, lsizes):
-        start_obs  = Input(shape=lsizes['obs_size'], name='start_obs')
-        start_repr = prep_layers(start_obs)   # layers that preprocess the start observation.
+    def create_train_model(self, repr_layers, dims):
+        start_obs  = Input(shape=dims['obs_size'], name='start_obs')
+        start_repr = repr_layers(start_obs)   # layers that preprocess the start observation.
 
         action = Input(shape=(1,), name='action')
 
-        wm =self.unique_layers([start_repr, action])#({'start_repr': self.prep_layers, 'wm_action': action})
+        wm =self.unique_layers([start_repr, action])#({'start_repr': self.repr_layers, 'wm_action': action})
 
         train_model = Model(inputs=[start_obs, action], outputs=wm)
         train_model.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy', r2_score])
         return train_model
 
-    def create_use_model(self, lsizes):
-        start_repr = Input(shape=(lsizes['repr_size'],), name='start_repr')
+    def create_use_model(self, dims):
+        start_repr = Input(shape=(dims['repr_size'],), name='start_repr')
         action = Input(shape=(1,), name='action')
 
-        wm =self.unique_layers([start_repr, action])#({'start_repr': self.prep_layers, 'wm_action': action})
+        wm =self.unique_layers([start_repr, action])#({'start_repr': self.repr_layers, 'wm_action': action})
 
         return Model(inputs=[start_repr, action], outputs=wm)
 
     @staticmethod
-    def create_layers(lsizes):
-        start_repr = Input(shape=(lsizes['repr_size'],), name='start_repr')
+    def create_layers(dims):
+        start_repr = Input(shape=(dims['repr_size'],), name='start_repr')
         action = Input(shape=(1,), name='action')
 
         outputs = concatenate([start_repr, action])
-        outputs = Dense(lsizes['repr_size'], activation='relu')(outputs)
-        outputs = Dense(lsizes['repr_size'])(outputs)
+        outputs = Dense(dims['repr_size'], activation='relu')(outputs)
+        outputs = Dense(dims['repr_size'])(outputs)
         outputs = LeakyReLU(alpha=0.2)(outputs)
 
         return Model(inputs=[start_repr, action], outputs=outputs)
 
-    def get_train_data_gen(self, buffer, batch_size, prep_model):
+    def get_train_data_gen(self, buffer, batch_size, repr_model):
         while True:
             start_idx = np.random.randint(0, len(buffer) - 1, size=batch_size)
 
@@ -173,23 +173,23 @@ class WMModel(Submodel):
 
             # select end_st
             data_y = np.stack(np_buffer[start_idx+1, 0])   # np.stack: numpy array of np arrays -> 2 dimensional np array
-            data_y = prep_model.model.predict(data_y)       # Although we get an observation for input, we only generate the inner representation of the outcome observation, so we need to process the outcome observations beforehand. obs + action -> end_repr
+            data_y = repr_model.model.predict(data_y)       # Although we get an observation for input, we only generate the inner representation of the outcome observation, so we need to process the outcome observations beforehand. obs + action -> end_repr
             yield [data_x_obs, data_x_act], data_y
 
-    def train(self, buffer, prep_model, hparams):    # We need the prep model so that we can generate our y data from the observations in the buffer.
+    def train(self, buffer, repr_model, hparams):    # We need the prep model so that we can generate our y data from the observations in the buffer.
         logger.info("Training {}...".format(self.__class__.__name__))
-        self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size'], prep_model), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
+        self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size'], repr_model), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
 
     def predict_wm(self, start_repr, action): # -> representation of resulting obs
         return self.use_model.predict({'start_repr': np.array([start_repr]), 'action': np.array([action])})[0]
 
 class RewardModel(Submodel):
-    def __init__(self, prep_layers, lsizes):
-        super().__init__(prep_layers, lsizes)
+    def __init__(self, repr_layers, dims):
+        super().__init__(repr_layers, dims)
 
-    def create_train_model(self, prep_layers, lsizes):
-        input_obs = Input(shape=lsizes['obs_size'])
-        _repr = prep_layers(input_obs)
+    def create_train_model(self, repr_layers, dims):
+        input_obs = Input(shape=dims['obs_size'])
+        _repr = repr_layers(input_obs)
 
         rew = self.unique_layers(_repr)
 
@@ -197,18 +197,18 @@ class RewardModel(Submodel):
         train_model.compile(loss='mse', optimizer='rmsprop', metrics=['accuracy', r2_score])
         return train_model
 
-    def create_use_model(self, lsizes):
-        _repr = Input(shape=(lsizes['repr_size'],))
+    def create_use_model(self, dims):
+        _repr = Input(shape=(dims['repr_size'],))
 
         rew = self.unique_layers(_repr)
 
         return Model(inputs=_repr, outputs=rew)
 
     @staticmethod
-    def create_layers(lsizes):
-        inputs  = Input(shape=(lsizes['repr_size'],))
+    def create_layers(dims):
+        inputs  = Input(shape=(dims['repr_size'],))
 
-        outputs = Dense(lsizes['repr_size'], activation='relu')(inputs)
+        outputs = Dense(dims['repr_size'], activation='relu')(inputs)
         outputs = Dense(1, activation='relu')(outputs)
 
         return Model(inputs=inputs, outputs=outputs)
@@ -241,11 +241,11 @@ class RewardModel(Submodel):
 
 # Models that take in an observation and generate intermediate layers
 class PreprocessModel(ABC):
-    def __init__(self, prep_layers, obs_size):
+    def __init__(self, repr_layers, obs_size):
         # Create a simple model that does observation -> inner_representation
 
         input_obs = Input(shape=obs_size)
-        output_repr = prep_layers(input_obs)
+        output_repr = repr_layers(input_obs)
 
         self.model = Model(inputs=input_obs, outputs=output_repr)
 
@@ -259,8 +259,8 @@ class PreprocessModel(ABC):
 
 
 class VectorPreprocessModel(PreprocessModel):
-    def __init__(self, prep_layers, obs_size):
-        super().__init__(prep_layers, obs_size)
+    def __init__(self, repr_layers, obs_size):
+        super().__init__(repr_layers, obs_size)
 
     @staticmethod
     def create_layers(obs_size, repr_size):
@@ -274,8 +274,8 @@ class VectorPreprocessModel(PreprocessModel):
         return Model(inputs=inputs, outputs=outputs)
 
 class ImagePreprocessModel(PreprocessModel):
-    def __init__(self, prep_layers, obs_size):
-        super().__init__(prep_layers, obs_size)     #
+    def __init__(self, repr_layers, obs_size):
+        super().__init__(repr_layers, obs_size)     #
 
     @staticmethod
     def create_layers(obs_size, repr_size):
