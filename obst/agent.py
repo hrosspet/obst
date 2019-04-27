@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
+from typing import Dict, List
 import numpy as np
 import random
 import logging
@@ -80,12 +81,13 @@ class BufferedAgent(AbstractAgent):
 #
 
 class ExplorationAgent(BufferedAgent):
-    def __init__(self, mode, repr_model, buffer_size, training_period, n_actions, dims, hparams):
+    def __init__(self, mode, repr_model, buffer_size, training_period, n_actions, tree_depth, dims, hparams):
         super().__init__(buffer_size, training_period, n_actions)
 
         self.mode = AgentMode.RANDOM#AgentMode[mode] # parses the string as an enum
         self.dims  = dims
         self.hparams = hparams
+        self.tree_depth = tree_depth
 
         # Create models
         self.repr_layers = repr_model.create_layers(dims['obs_size'], dims['repr_size'])
@@ -95,46 +97,68 @@ class ExplorationAgent(BufferedAgent):
         self.wm_model  = WMModel(self.repr_layers, dims)
         self.reward_model = RewardModel(self.repr_layers, dims)
 
-    def decide(self, observation, reward):
-        representation = self.repr_model.get_repr(observation)
-        candidates_repr = {}     # {action, predicted_repr}
+    def decide(self, observation, reward):      # Just a wrapper for debug
+        current=self.repr_model.get_repr(observation)
+        act=self.decide_(observation, reward)
+        logger.debug('current: {} + {} -> \t{}'.format(current, act, self.wm_model.predict_wm(current, act)))
+        return act
 
-        # Predict the observation for each action
-        for act_no in range(self.n_actions):
-            candidates_repr[act_no] = self.wm_model.predict_wm(representation, act_no)
+    def decide_(self, observation, reward):
+        current_repr = self.repr_model.get_repr(observation)    # Repr of our current state
 
+        if self.mode == AgentMode.RANDOM: return random.randint(0, self.n_actions - 1)
+
+        # Create a tree of potential states
+        current_state = PotentialState(repr=current_repr, sim=1, reward=reward,     # Not really potential but yeah
+                        models=(self.wm_model, self.sim_model, self.reward_model))
+        current_state.predict_children(self.tree_depth, self.n_actions)
+
+        # Now find the actions we want to take depending on the current criteria
         if self.mode == AgentMode.EXPLORE:
             # Find the one with the lowest similarity
-            candidates_sim = {}     # {action, sim}
+            def find_action_with_lowest_sim(state, actions: List[int]) -> (List[int], int):    # actions: list of actions taken to get from here to this state
+                if len(state.children) == 0: return [], 1
 
-            for action, outcome in candidates_repr.items():
-                candidates_sim[action] = self.sim_model.predict_sim(representation, outcome)
-                candidates_sim[action] += random.uniform(0, 0.05)   # in case all predictions are 0
+                # The best node so far is the one we're currently at. Once we search though its children though, we'll probably find a better one.
+                lowest_sim = state.sim  # Lowest sim found
+                lowest_actions = actions # Actions to get to it
 
-            lowest_sim = min(candidates_sim, key=candidates_sim.get)
+                for action, outcome in state.children.items():
+                    # Find if it has a child that's better
+                    outcome_lowest_actions, outcome_lowest_sim = find_action_with_lowest_sim(outcome, actions + [action])
+                    if outcome_lowest_sim < lowest_sim:
+                        lowest_sim = outcome_lowest_sim
+                        lowest_actions = outcome_lowest_actions
 
-            for action, sim in candidates_sim.items():
-                logger.debug('{}: {}  {}\t->\t{}\t ({}) {}'.format(action, observation, representation, candidates_repr[action], sim, '*' if action == lowest_sim else ''))
+                return lowest_actions, lowest_sim
 
-            return lowest_sim
+            planned_actions, planned_sim = find_action_with_lowest_sim(current_state, [])
+
+            logger.debug('actions: {} -> {}'.format(planned_actions, planned_sim))
+
+            return planned_actions[0]    # We only ever take the first step towards the desired state. But unless a better one is found next time, the next step will be taken any way.
 
         if self.mode == AgentMode.EXPLOIT:
             # Find the one with the highest reward
-            candidates_reward = {}  # {action, predicted_reward}
+            def find_action_with_highest_reward(state, actions: List[int]):    # actions: list of actions taken to get from here to this state
+                if len(state.children) == 0: return
 
-            for action, outcome in candidates_repr.items():
-                candidates_reward[action] = self.reward_model.predict_rew(outcome)
-                candidates_reward[action] += random.uniform(0, 0.05)    # in case all predictions are 0
+                # The best node so far is the one we're currently at. Once we search though its children though, we'll probably find a better one.
+                highest_reward = state.sim  # Lowest sim found
+                highest_actions = actions # Actions to get to it
 
-            highest_reward = max(candidates_reward, key=candidates_reward.get)
+                for action, outcome in state.children.items():
+                    # Find if it has a child that's better
+                    outcome_highest_actions, outcome_highest_reward = find_action_with_highest_reward(outcome, actions + [action])
+                    if outcome_highest_reward < highest_reward:
+                        highest_reward = outcome_highest_reward
+                        highest_actions = outcome_highest_actions
 
-            for action, pred_reward in candidates_reward.items():
-                logger.debug('{}: {}  {}\t->\t{}\t ({}) {}'.format(action, observation, representation, candidates_repr[action], pred_reward, '*' if action == highest_reward else ''))
+                return highest_actions, highest_reward
 
-            return highest_reward
+            find_action_with_highest_reward(current_state, [])
 
-        if self.mode == AgentMode.RANDOM:
-            return random.randint(0, self.n_actions - 1)
+            return planned_actions[0]    # We only ever take the first step towards the desired state. But unless a better one is found next time, the next step will be taken any way.
 
     def train(self):
         # import pdb;pdb.set_trace()
@@ -151,6 +175,24 @@ class ExplorationAgent(BufferedAgent):
 
             self.mode = AgentMode.EXPLORE     # Switch to exploration after the initial period of random movement
 
-    # def save_weights(self, directory):
-    #     self.repr_layers.save('%/shared_layers.h5' % directory)
-    #     self.sim_model.save('%/.h5' % directory)
+class PotentialState:
+    def __init__(self, repr, models, sim=None, reward=None, parent_repr=None):   # parent_repr used only when sim isn't set to predict similarity with previous state
+        self.wm_model, self.sim_model, self.reward_model = models    # We have to store references to the models that we use to guess stuff
+
+        self.repr   = repr    # Predicted representation
+        self.sim    = sim    if sim    else self.sim_model.predict_sim(parent_repr, self.repr) + random.uniform(0, 0.05)
+        self.reward = reward if reward else self.reward_model.predict_rew(self.repr)  # Predict automatically if not specified.
+
+        self.children = {}  # To be computed later
+
+    def predict_children(self, levels, n_actions):
+        if levels > 0:
+            # Predict the state resulting from each action
+            for act_no in range(n_actions):
+                child_repr = self.wm_model.predict_wm(self.repr, act_no)
+                self.children[act_no] = PotentialState(child_repr, parent_repr=self.repr, models=(self.wm_model, self.sim_model, self.reward_model))
+                logger.debug((4-levels)*4*' ' + str(self.children[act_no]))
+                self.children[act_no].predict_children(levels - 1, n_actions)
+
+    def __repr__(self):
+        return 'repr: {}\tsim: {}\treward: {}'.format(self.repr, self.sim, self.reward)

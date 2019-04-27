@@ -50,6 +50,8 @@ CONFIG = {
 
                 'lr': 1e-3,
             },
+
+            'tree_depth': 4,    # Depth of decision tree
         }
     },
     'TRAINING_STEPS': 100000,
