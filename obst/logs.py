@@ -19,8 +19,9 @@ def get_git_dir_hash(gitdir):
 
 
 def generate_run_id(gitdir, run_func):
-    commit_hash = get_git_dir_hash(gitdir)
-    return '{}-{}-{}'.format(RUN_ID, commit_hash, run_func)
+    # commit_hash = get_git_dir_hash(gitdir)
+    # return '{}-{}-{}'.format(RUN_ID, commit_hash, run_func)   # Can't do this because Docker image doesn't have git installed and .git directory isn't present
+    return '{}-{}'.format(RUN_ID, run_func)
 
 
 class InjectRunID(logging.Filter):

@@ -118,7 +118,7 @@ class My2DWorld(World):
         # An arbitary set of numbers that changes for each state
         obs = np.array([math.log(self.agt_x+1), math.log(self.agt_x+1, self.agt_y+2), math.log(self.width - self.agt_x+1, 10), math.log(self.height - self.agt_y+1), math.log(abs(self.agt_y - self.agt_x)+1)])
         # obs=np.array([self.agt_x, self.agt_y])
-        reward: bool = (self.agt_x, self.agt_y) in rewards
+        reward = (self.agt_x, self.agt_y) in rewards
         return obs, (1 if reward else 0), reward, None  # reset on reward
 
     def reset(self, test=False):

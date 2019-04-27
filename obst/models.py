@@ -15,10 +15,10 @@ from r2_score import r2_score
 # The use_model only contains the layers made create_layers and is used for the predicting. (We make predictions from the inner representation, not straight from observations)
 
 class Submodel(ABC):
-    train_model: Model
-    use_model: Model
+    # train_model: Model
+    # use_model: Model
 
-    unique_layers: Model
+    # unique_layers: Model
 
     def __init__(self, repr_layers, dims):
         # Layers unique to this model
