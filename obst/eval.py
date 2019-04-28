@@ -38,8 +38,11 @@ class Eval():
                 plt.savefig('logs/' + datetime.now().strftime("%Y%m%d%H%M%S") + '_steps_' + str(step - self.vis_steps) + '_' + str(step) + '.png')
                 plt.close()
 
-            if step % (self.vis_steps // 5) == 0:
+            if step % (self.vis_steps // 20) == 0:
                 logger.info("step {}".format(step))
+
+            # if step % 100 == 50:
+            #     import pdb; pdb.set_trace()
 
             # get agent's action based on the world observation
             action = self.agent.behave(observation, reward)

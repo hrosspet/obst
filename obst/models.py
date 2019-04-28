@@ -84,34 +84,26 @@ class SimModel(Submodel):
 
     def get_train_data_gen(self, buffer, batch_size):
         while True:
-            third_batch = batch_size // 3
-            idx = np.random.randint(0, len(buffer) - 1, 4 * third_batch)
-            similar_idx = idx[:third_batch]
-            dissimilar_idx_0 = idx[third_batch:third_batch*2]
-            dissimilar_idx_1 = idx[third_batch*2:third_batch*3]
-            same_idx = idx[third_batch*3:]
+            half_batch = batch_size // 2
+            idx = np.random.randint(0, len(buffer) - 1, 3 * half_batch)
+            similar_idx = idx[:half_batch]
+            dissimilar_idx_0 = idx[half_batch:half_batch*2]
+            dissimilar_idx_1 = idx[half_batch*2:half_batch*3]
             data = np.array([observation for observation, reward, decision in buffer])
 
-            # import pdb; pdb.set_trace()
-            data_x_a = np.zeros((third_batch*3, *data.shape[1:]))
-            data_x_b = np.zeros((third_batch*3, *data.shape[1:]))
-            data_y = np.zeros((third_batch*3, 1))
-
-            # fill in same samples
-            data_x_a[:third_batch, :] = data[same_idx, :]
-            data_x_b[:third_batch, :] = data[same_idx, :]
-
-            data_y[:third_batch] = 1
+            data_x_a = np.zeros((batch_size, *data.shape[1:]))
+            data_x_b = np.zeros((batch_size, *data.shape[1:]))
+            data_y = np.zeros((batch_size, 1))
 
             # fill in similar samples
-            data_x_a[third_batch:third_batch*2, :] = data[similar_idx, :]
-            data_x_b[third_batch:third_batch*2, :] = data[similar_idx+1, :]
+            data_x_a[:half_batch, :] = data[similar_idx, :]
+            data_x_b[:half_batch, :] = data[similar_idx+1, :]
 
-            data_y[third_batch:third_batch*2] = 1
+            data_y[:half_batch] = 1
 
             # fill in dissimilar samples
-            data_x_a[third_batch*2:, :] = data[dissimilar_idx_0, :]
-            data_x_b[third_batch*2:, :] = data[dissimilar_idx_1, :]
+            data_x_a[half_batch:, :] = data[dissimilar_idx_0, :]
+            data_x_b[half_batch:, :] = data[dissimilar_idx_1, :]
 
             yield [data_x_a, data_x_b], data_y
 

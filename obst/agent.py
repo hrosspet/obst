@@ -97,8 +97,11 @@ class ExplorationAgent(BufferedAgent):
         self.wm_model  = WMModel(self.repr_layers, dims)
         self.reward_model = RewardModel(self.repr_layers, dims)
 
+        self.step_plan = []
+
     def decide(self, observation, reward):      # Just a wrapper for debug
         current=self.repr_model.get_repr(observation)
+        logger.debug('current: {}'.format(current))
         act=self.decide_(observation, reward)
         logger.debug('current: {} + {} -> \t{}'.format(current, act, self.wm_model.predict_wm(current, act)))
         return act
@@ -107,6 +110,9 @@ class ExplorationAgent(BufferedAgent):
         current_repr = self.repr_model.get_repr(observation)    # Repr of our current state
 
         if self.mode == AgentMode.RANDOM: return random.randint(0, self.n_actions - 1)
+
+        # If we've already planned some steps ahead, stick to the plan. Otherwise go on to generate steps now.
+        if len(self.step_plan) != 0: return self.step_plan.pop(0)
 
         # Create a tree of potential states
         current_state = PotentialState(repr=current_repr, sim=1, reward=reward,     # Not really potential but yeah
@@ -132,11 +138,11 @@ class ExplorationAgent(BufferedAgent):
 
                 return lowest_actions, lowest_sim
 
-            planned_actions, planned_sim = find_action_with_lowest_sim(current_state, [])
+            self.step_plan, planned_sim = find_action_with_lowest_sim(current_state, [])
 
-            logger.debug('actions: {} -> {}'.format(planned_actions, planned_sim))
+            logger.debug('actions: {} -> {}'.format(self.step_plan, planned_sim))
 
-            return planned_actions[0]    # We only ever take the first step towards the desired state. But unless a better one is found next time, the next step will be taken any way.
+            return self.step_plan.pop(0)    # We only ever take the first step towards the desired state. But unless a better one is found next time, the next step will be taken any way.
 
         if self.mode == AgentMode.EXPLOIT:
             # Find the one with the highest reward
