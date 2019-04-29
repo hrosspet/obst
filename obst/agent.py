@@ -171,7 +171,8 @@ class ExplorationAgent(BufferedAgent):
         # Gets called every 10,000 steps to train the various models we're using
         self.sim_model.train(self.buffer, self.hparams)
         self.wm_model.train(self.buffer, self.repr_model, self.hparams)
-        self.reward_model.train(self.buffer, self.hparams)
+        # self.reward_model.train(self.buffer, self.hparams)
+        logger.info('Reward model training disabled')
 
         if self.mode == AgentMode.RANDOM:
             logger.info('Switching from RANDOM to EXPLORE mode.')

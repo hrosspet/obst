@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 import keras
 from keras.models import Model
 from keras.layers import Input, concatenate, Dense, Dropout, LSTM, GaussianNoise, LeakyReLU, BatchNormalization, Subtract, Conv2D, MaxPooling2D, Flatten
-from r2_score import r2_score
+from obst.r2_score import r2_score
 
 # Each Submodel class contains two keras models: a train_model and a use_model
 # The train_model contains the shared layers so that we can train these shared layers with the model. It works on observations.

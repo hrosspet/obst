@@ -116,7 +116,20 @@ class My2DWorld(World):
         logger.debug("{} {}".format(self.agt_x, self.agt_y))
 
         # An arbitary set of numbers that changes for each state
-        obs = np.array([math.log(self.agt_x+1), math.log(self.agt_x+1, self.agt_y+2), math.log(self.width - self.agt_x+1, 10), math.log(self.height - self.agt_y+1), math.log(abs(self.agt_y - self.agt_x)+1)])
+        # obs = np.array([
+        #     math.log(self.agt_x+1),
+        #     math.log(self.agt_x+1, self.agt_y+2),
+        #     math.log(self.width - self.agt_x+1, 10),
+        #     math.log(self.height - self.agt_y+1),
+        #     math.log(abs(self.agt_y - self.agt_x)+1)
+        # ])
+        obs = np.array([
+            3 * self.agt_x + 3,
+            7 * self.agt_x + 7 + 5 * self.agt_y + 2,
+            5 * self.width - 3 * self.agt_x + 10,
+            13 * self.height - 7 * self.agt_y + 7,
+            3 * self.agt_y - 17 * self.agt_x - 5
+        ])
         # obs=np.array([self.agt_x, self.agt_y])
         reward = (self.agt_x, self.agt_y) in rewards
         return obs, (1 if reward else 0), reward, None  # reset on reward
@@ -125,17 +138,101 @@ class My2DWorld(World):
         self.agt_x = self.width  // 2
         self.agt_y = self.height // 2
 
+
+class Twisted2DWorld(World):
+    def __init__(self, world_def):
+        super().__init__()
+
+        # read world definition from given text file
+        self._read_def(world_def)
+        self.width = len(self.world_def[0])
+        self.height = len(self.world_def)
+
+        self.reset(False)
+
+        self._calculate_observations()
+
+    def _read_def(self, world_def):
+        with open(world_def, 'r') as f:
+            self.world_def = []
+            for line in f.readlines():
+                self.world_def.append(list(line))
+
+
+    def _exec_action(self, position, action):
+        x, y = position
+
+        if action == 0:
+            if self.world_def[position[1] - 1][position[0]] == ' ':
+                y -= 1
+        if action == 1:
+            if self.world_def[position[1]][position[0] + 1] == ' ':
+                x += 1
+        if action == 2:
+            if self.world_def[position[1] + 1][position[0]] == ' ':
+                y += 1
+        if action == 3:
+            if self.world_def[position[1]][position[0] - 1] == ' ':
+                x -= 1
+        return x, y
+
+    def _get_next_positions(self, position):
+        return set(self._exec_action(position, action) for action in range(4))
+
+    # bfs + observation calculation based on distances
+    def _calculate_observations(self):
+        actual = (self.agt_x, self.agt_y)
+        open_set = [actual]
+        closed_set = set()
+
+        # track distances from origin
+        self.observations = {}
+        self.observations[actual] = 0
+
+        while open_set:
+            actual = open_set.pop(0)
+            closed_set.add(actual)
+            for next_position in self._get_next_positions(actual):
+                if next_position not in closed_set:
+                    open_set.append(next_position)
+
+                    self.observations[next_position] = self.observations[actual] + 1
+
+    def step(self, action):
+        self.agt_x, self.agt_y = self._exec_action((self.agt_x, self.agt_y), action)
+
+        logger.debug("{} {}".format(self.agt_x, self.agt_y))
+
+        # create observations from agent's
+        obs = self.observations[(self.agt_x, self.agt_y)]
+        # obs *= obs
+        obs = np.array([obs])
+
+        return obs, 0, 0, None  # reset on reward
+
+    def show(self):
+        self.world_def[self.agt_y][self.agt_x] = '@'
+        for line in self.world_def:
+            print(''.join(line), end='')
+
+        self.world_def[self.agt_y][self.agt_x] = ' '
+
+    def reset(self, test=False):
+        self.agt_x = self.width  // 2 - 1
+        self.agt_y = self.height // 2 - 1
+
 from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 
-class Visualizing2DWorld(My2DWorld):
-    def __init__(self, width, height, cyclic):
-        super().__init__(width, height, cyclic)
+# class Visualizing2DWorld(My2DWorld):
+class Visualizing2DWorld(Twisted2DWorld):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
         self.step_no = 0
         self.pos_history = []   # We need to keep position history so that we can draw the agent's movements. Although the agent has is's own buffer, it doesn't contain the x and y -- only the observation from the given point.
-        self.heatmap = np.zeros((height, width))
+        self.heatmap = np.zeros((self.height, self.width))
         self.last_all_visited = self.heatmap.copy()
         self.all_visited_log = []
         self.reset_log = []  # Log every time the world resets

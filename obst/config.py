@@ -1,18 +1,32 @@
-from obst.env import OneHot1DWorld, OneHot1DCyclicWorld, My2DWorld, Visualizing2DWorld
+from obst.env import OneHot1DWorld, OneHot1DCyclicWorld, My2DWorld, Visualizing2DWorld, Twisted2DWorld
 from obst.models import VectorPreprocessModel, ImagePreprocessModel
 # from obst.unityenv import ObstTowerWorld
 from obst.agent import ExplorationAgent
 
+# Visualizing2DWorld_config = {
+#    'constructor': Visualizing2DWorld,
+#    'ctor_params': {
+#        # 'width': 12, 'height': 12,
+#        'width': 100, 'height': 100,
+#        'cyclic': False
+#    },
+
+#    'repr_model': VectorPreprocessModel,     # The model that processes this world's observation data
+#    'dims': {                                #
+#        'obs_size': (5,),
+#        'repr_size': 4,
+#    }
+# }
 Visualizing2DWorld_config = {
    'constructor': Visualizing2DWorld,
    'ctor_params': {
-       'width': 12, 'height': 12,
-       'cyclic': False
+       # 'world_def': 'obst/twisted_worlds/twisted_01.txt'
+       'world_def': 'obst/twisted_worlds/twisted_02.txt'
    },
 
    'repr_model': VectorPreprocessModel,     # The model that processes this world's observation data
    'dims': {                                #
-       'obs_size': (5,),
+       'obs_size': (1,),
        'repr_size': 4,
    }
 }
@@ -51,7 +65,7 @@ CONFIG = {
                 'lr': 1e-3,
             },
 
-            'tree_depth': 4,    # Depth of decision tree
+            'tree_depth': 6,    # Depth of decision tree
         }
     },
     'TRAINING_STEPS': 100000,
