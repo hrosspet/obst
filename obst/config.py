@@ -3,25 +3,11 @@ from obst.models import VectorPreprocessModel, ImagePreprocessModel
 # from obst.unityenv import ObstTowerWorld
 from obst.agent import ExplorationAgent
 
-# Visualizing2DWorld_config = {
-#    'constructor': Visualizing2DWorld,
-#    'ctor_params': {
-#        # 'width': 12, 'height': 12,
-#        'width': 100, 'height': 100,
-#        'cyclic': False
-#    },
-
-#    'repr_model': VectorPreprocessModel,     # The model that processes this world's observation data
-#    'dims': {                                #
-#        'obs_size': (5,),
-#        'repr_size': 4,
-#    }
-# }
-Visualizing2DWorld_config = {
+Vizualizing2DWorld_config = {
    'constructor': Visualizing2DWorld,
    'ctor_params': {
        # 'world_def': 'obst/twisted_worlds/twisted_01.txt'
-       'world_def': 'obst/twisted_worlds/twisted_02.txt'
+       'world_file': 'obst/twisted_worlds/twisted_02.txt'
    },
 
    'repr_model': VectorPreprocessModel,     # The model that processes this world's observation data
@@ -46,7 +32,8 @@ Visualizing2DWorld_config = {
 
 CONFIG = {
     'TIME_FORMAT': '%Y-%m-%d %H:%M:%S',
-    'WORLD': Visualizing2DWorld_config,
+    'WORLD': Vizualizing2DWorld_config,
+    # 'WORLD': Visualizing2DWorld_config,
     # 'WORLD': ObstTowerWorld_config,
     'AGENT': {
         'constructor': ExplorationAgent,

@@ -140,39 +140,38 @@ class My2DWorld(World):
 
 
 class Twisted2DWorld(World):
-    def __init__(self, world_def):
+    def __init__(self, world_file):
         super().__init__()
 
         # read world definition from given text file
-        self._read_def(world_def)
-        self.width = len(self.world_def[0])
-        self.height = len(self.world_def)
+        self._read_def(world_file)
+        self.width = len(self.world_map[0])
+        self.height = len(self.world_map)
 
         self.reset(False)
 
         self._calculate_observations()
 
-    def _read_def(self, world_def):
-        with open(world_def, 'r') as f:
-            self.world_def = []
-            for line in f.readlines():
-                self.world_def.append(list(line))
-
+    def _read_def(self, world_file):
+        with open(world_file, 'r') as f:
+            self.world_map = []
+            for line in f.read().splitlines():
+                self.world_map.append(list(line))
 
     def _exec_action(self, position, action):
         x, y = position
 
         if action == 0:
-            if self.world_def[position[1] - 1][position[0]] == ' ':
+            if self.world_map[position[1] - 1][position[0]] == ' ':
                 y -= 1
         if action == 1:
-            if self.world_def[position[1]][position[0] + 1] == ' ':
+            if self.world_map[position[1]][position[0] + 1] == ' ':
                 x += 1
         if action == 2:
-            if self.world_def[position[1] + 1][position[0]] == ' ':
+            if self.world_map[position[1] + 1][position[0]] == ' ':
                 y += 1
         if action == 3:
-            if self.world_def[position[1]][position[0] - 1] == ' ':
+            if self.world_map[position[1]][position[0] - 1] == ' ':
                 x -= 1
         return x, y
 
@@ -211,11 +210,11 @@ class Twisted2DWorld(World):
         return obs, 0, 0, None  # reset on reward
 
     def show(self):
-        self.world_def[self.agt_y][self.agt_x] = '@'
-        for line in self.world_def:
+        self.world_map[self.agt_y][self.agt_x] = '@'
+        for line in self.world_map:
             print(''.join(line), end='')
 
-        self.world_def[self.agt_y][self.agt_x] = ' '
+        self.world_map[self.agt_y][self.agt_x] = ' '
 
     def reset(self, test=False):
         self.agt_x = self.width  // 2 - 1
@@ -264,6 +263,12 @@ class Visualizing2DWorld(Twisted2DWorld):
 
         vis.axis((0, self.width - 1, 0, self.height - 1))
         vis.grid(True)
+        
+        # Draw walls
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.world_map[y][x] == '#':
+                    vis.scatter(x, y, c='black', marker='s')
 
         # Draw rewards
         for coords in rewards:
