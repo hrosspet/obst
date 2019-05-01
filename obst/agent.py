@@ -107,6 +107,26 @@ class ExplorationAgent(BufferedAgent):
         return act
 
     def decide_(self, observation, reward):
+        def find_action_with_best_val(state, actions: List[int], is_first_one_better, get_queried_attribute):    # actions: list of actions taken to get from here to this state; compare_is_better: lambda that compares whether the first argument is more desired than the second one.; get_queried_attribute get the attribute that we'll be trying to find the best of. PotentialState given as an argument.
+            if len(state.children) == 0: return None, None
+
+            # The best node so far is the one we're currently at. Once we search though its children though, we'll probably find a better one.
+            best_val = get_queried_attribute(state)  # Lowest sim found
+            best_actions = actions # Actions to get to it
+
+            for action, outcome in state.children.items():
+                # Find if it has a child that's better
+                outcome_best_actions, outcome_best_val = find_action_with_best_val(outcome, actions + [action], is_first_one_better, get_queried_attribute)
+
+                if outcome_best_val != None:
+                    if is_first_one_better(outcome_best_val, best_val):
+                        best_val = outcome_best_val
+                        best_actions = outcome_best_actions
+
+            return best_actions, best_val
+
+        ##
+
         current_repr = self.repr_model.get_repr(observation)    # Repr of our current state
 
         if self.mode == AgentMode.RANDOM: return random.randint(0, self.n_actions - 1)
@@ -121,58 +141,28 @@ class ExplorationAgent(BufferedAgent):
 
         # Now find the actions we want to take depending on the current criteria
         if self.mode == AgentMode.EXPLORE:
-            # Find the one with the lowest similarity
-            def find_action_with_lowest_sim(state, actions: List[int]) -> (List[int], int):    # actions: list of actions taken to get from here to this state
-                if len(state.children) == 0: return [], 1
-
-                # The best node so far is the one we're currently at. Once we search though its children though, we'll probably find a better one.
-                lowest_sim = state.sim  # Lowest sim found
-                lowest_actions = actions # Actions to get to it
-
-                for action, outcome in state.children.items():
-                    # Find if it has a child that's better
-                    outcome_lowest_actions, outcome_lowest_sim = find_action_with_lowest_sim(outcome, actions + [action])
-                    if outcome_lowest_sim < lowest_sim:
-                        lowest_sim = outcome_lowest_sim
-                        lowest_actions = outcome_lowest_actions
-
-                return lowest_actions, lowest_sim
-
-            self.step_plan, planned_sim = find_action_with_lowest_sim(current_state, [])
+            # Find the sequence of actions leading to the lowest similarity
+            self.step_plan, planned_sim = find_action_with_best_val(current_state, [], lambda outcome_sim, global_lowest_sim: outcome_sim < global_lowest_sim, lambda potential_state: potential_state.sim)
 
             logger.debug('actions: {} -> {}'.format(self.step_plan, planned_sim))
 
-            return self.step_plan.pop(0)    # We only ever take the first step towards the desired state. But unless a better one is found next time, the next step will be taken any way.
+            return self.step_plan.pop(0)    # Take the first step in the plan
 
         if self.mode == AgentMode.EXPLOIT:
-            # Find the one with the highest reward
-            def find_action_with_highest_reward(state, actions: List[int]):    # actions: list of actions taken to get from here to this state
-                if len(state.children) == 0: return
+            # Find the sequence of actions leading to the highest reward
+            self.step_plan, planned_rew = find_action_with_best_val(current_state, [], lambda outcome_reward, global_highest_reward: outcome_reward > global_highest_reward, lambda potential_state: potential_state.reward)
 
-                # The best node so far is the one we're currently at. Once we search though its children though, we'll probably find a better one.
-                highest_reward = state.sim  # Lowest sim found
-                highest_actions = actions # Actions to get to it
+            logger.debug('actions: {} -> {}'.format(self.step_plan, planned_sim))
 
-                for action, outcome in state.children.items():
-                    # Find if it has a child that's better
-                    outcome_highest_actions, outcome_highest_reward = find_action_with_highest_reward(outcome, actions + [action])
-                    if outcome_highest_reward < highest_reward:
-                        highest_reward = outcome_highest_reward
-                        highest_actions = outcome_highest_actions
-
-                return highest_actions, highest_reward
-
-            find_action_with_highest_reward(current_state, [])
-
-            return planned_actions[0]    # We only ever take the first step towards the desired state. But unless a better one is found next time, the next step will be taken any way.
+            return self.step_plan.pop(0)
 
     def train(self):
         # import pdb;pdb.set_trace()
         # Gets called every 10,000 steps to train the various models we're using
         self.sim_model.train(self.buffer, self.hparams)
         self.wm_model.train(self.buffer, self.repr_model, self.hparams)
-        # self.reward_model.train(self.buffer, self.hparams)
-        logger.info('Reward model training disabled')
+        self.reward_model.train(self.buffer, self.hparams)
+        # logger.info('Reward model training disabled')
 
         if self.mode == AgentMode.RANDOM:
             logger.info('Switching from RANDOM to EXPLORE mode.')

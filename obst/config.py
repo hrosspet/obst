@@ -6,8 +6,7 @@ from obst.agent import ExplorationAgent
 Vizualizing2DWorld_config = {
    'constructor': Visualizing2DWorld,
    'ctor_params': {
-       # 'world_def': 'obst/twisted_worlds/twisted_01.txt'
-       'world_file': 'obst/twisted_worlds/twisted_02.txt'
+       'world_file': 'obst/twisted_worlds/twisted_03.txt'
    },
 
    'repr_model': VectorPreprocessModel,     # The model that processes this world's observation data
@@ -55,6 +54,7 @@ CONFIG = {
             'tree_depth': 6,    # Depth of decision tree
         }
     },
+    
     'TRAINING_STEPS': 100000,
     'TEST_STEPS': 100,
 

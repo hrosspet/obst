@@ -42,7 +42,7 @@ class Submodel(ABC):
         pass
 
     @abstractmethod
-    def train(self, buffer, hparams):
+    def train(self, buffer, hparams) -> keras.callbacks.History:
         pass
 
 class SimModel(Submodel):
@@ -109,7 +109,7 @@ class SimModel(Submodel):
 
     def train(self, buffer, hparams):
         logger.info("Training {}...".format(self.__class__.__name__))
-        self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size']), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
+        return self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size']), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
 
     def predict_sim(self, repr_a, repr_b):
         return self.use_model.predict([np.array([repr_a]), np.array([repr_b])])[0]
@@ -170,7 +170,7 @@ class WMModel(Submodel):
 
     def train(self, buffer, repr_model, hparams):    # We need the prep model so that we can generate our y data from the observations in the buffer.
         logger.info("Training {}...".format(self.__class__.__name__))
-        self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size'], repr_model), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
+        return self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size'], repr_model), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
 
     def predict_wm(self, start_repr, action): # -> representation of resulting obs
         return self.use_model.predict({'start_repr': np.array([start_repr]), 'action': np.array([action])})[0]
@@ -226,7 +226,7 @@ class RewardModel(Submodel):
         print(len([x for x in buffer if x[1] != 0]))
         if len([x for x in buffer if x[1] != 0]) != 0:  # If we've actually got some rewards in buffer to train on
             logger.info("Training {}...".format(self.__class__.__name__))
-            self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size']), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
+            return self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size']), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
 
     def predict_rew(self, repres): # -> float (reward)
         return self.use_model.predict(np.array([repres]))[0]

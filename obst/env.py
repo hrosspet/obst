@@ -263,7 +263,7 @@ class Visualizing2DWorld(Twisted2DWorld):
 
         vis.axis((0, self.width - 1, 0, self.height - 1))
         vis.grid(True)
-        
+
         # Draw walls
         for y in range(self.height):
             for x in range(self.width):
