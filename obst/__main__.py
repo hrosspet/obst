@@ -1,4 +1,7 @@
+import sys
 import fire
+import pdb, traceback, sys
+
 from obst.logs import generate_run_id, prepare_logging
 from obst.eval import Eval
 from obst.config import CONFIG
@@ -6,7 +9,7 @@ from obst.config import CONFIG
 TRAINING_STEPS = CONFIG['TRAINING_STEPS']
 TEST_STEPS = CONFIG['TEST_STEPS']
 
-def main(verbosity='INFO', loglevel='INFO', gitdir='.git'):
+def main(verbosity='INFO', loglevel='DEBUG', gitdir='.git'):
     try:
         world = CONFIG['WORLD']['constructor'](**CONFIG['WORLD']['ctor_params'])
         agent = CONFIG['AGENT']['constructor'](dims=CONFIG['WORLD']['dims'], repr_model=CONFIG['WORLD']['repr_model'], **CONFIG['AGENT']['ctor_params'])
@@ -30,6 +33,11 @@ def main(verbosity='INFO', loglevel='INFO', gitdir='.git'):
         logger.warning("Terminated by user.")
     except SystemExit:
         logger.info("Finished.")
+    except:
+        # Trigger debugger on exception     # https://stackoverflow.com/questions/242485/starting-python-debugger-automatically-on-error
+        extype, value, tb = sys.exc_info()
+        traceback.print_exc()
+        pdb.post_mortem(tb)
     finally:
         if world.__class__.__name__ == 'ObstTowerWorld':
             world.env.close()

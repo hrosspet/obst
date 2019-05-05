@@ -111,8 +111,8 @@ class ExplorationAgent(BufferedAgent):
             if len(state.children) == 0: return None, None
 
             # The best node so far is the one we're currently at. Once we search though its children though, we'll probably find a better one.
-            best_val = get_queried_attribute(state)  # Lowest sim found
-            best_actions = actions # Actions to get to it
+            best_val = get_queried_attribute(state)
+            best_actions = actions # Actions to get to it. (currently actions to get to current state, as that is for now the state with the best value)
 
             for action, outcome in state.children.items():
                 # Find if it has a child that's better

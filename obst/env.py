@@ -150,28 +150,28 @@ class Twisted2DWorld(World):
 
         self.reset(False)
 
-        self._calculate_observations()
+        # self._calculate_observations()    # Real slow on big maps
 
     def _read_def(self, world_file):
         with open(world_file, 'r') as f:
             self.world_map = []
-            for line in f.read().splitlines():
-                self.world_map.append(list(line))
+            for line in reversed(f.read().splitlines()):
+                self.world_map.append([int(tile) for tile in list(line.replace(' ', '0').replace('#', '1'))])   # Convert to [[int]]
 
     def _exec_action(self, position, action):
         x, y = position
 
         if action == 0:
-            if self.world_map[position[1] - 1][position[0]] == ' ':
+            if self.world_map[position[1] - 1][position[0]] == 0:
                 y -= 1
         if action == 1:
-            if self.world_map[position[1]][position[0] + 1] == ' ':
+            if self.world_map[position[1]][position[0] + 1] == 0:
                 x += 1
         if action == 2:
-            if self.world_map[position[1] + 1][position[0]] == ' ':
+            if self.world_map[position[1] + 1][position[0]] == 0:
                 y += 1
         if action == 3:
-            if self.world_map[position[1]][position[0] - 1] == ' ':
+            if self.world_map[position[1]][position[0] - 1] == 0:
                 x -= 1
         return x, y
 
@@ -179,23 +179,23 @@ class Twisted2DWorld(World):
         return set(self._exec_action(position, action) for action in range(4))
 
     # bfs + observation calculation based on distances
-    def _calculate_observations(self):
-        actual = (self.agt_x, self.agt_y)
-        open_set = [actual]
-        closed_set = set()
-
-        # track distances from origin
-        self.observations = {}
-        self.observations[actual] = 0
-
-        while open_set:
-            actual = open_set.pop(0)
-            closed_set.add(actual)
-            for next_position in self._get_next_positions(actual):
-                if next_position not in closed_set:
-                    open_set.append(next_position)
-
-                    self.observations[next_position] = self.observations[actual] + 1
+    # def _calculate_observations(self):
+    #     actual = (self.agt_x, self.agt_y)
+    #     open_set = [actual]
+    #     closed_set = set()
+    #
+    #     # track distances from origin
+    #     self.observations = {}
+    #     self.observations[actual] = 0
+    #
+    #     while open_set:
+    #         actual = open_set.pop(0)
+    #         closed_set.add(actual)
+    #         for next_position in self._get_next_positions(actual):
+    #             if next_position not in closed_set:
+    #                 open_set.append(next_position)
+    #
+    #                 self.observations[next_position] = self.observations[actual] + 1
 
     def step(self, action):
         self.agt_x, self.agt_y = self._exec_action((self.agt_x, self.agt_y), action)
@@ -203,9 +203,10 @@ class Twisted2DWorld(World):
         logger.debug("{} {}".format(self.agt_x, self.agt_y))
 
         # create observations from agent's
-        obs = self.observations[(self.agt_x, self.agt_y)]
+        # obs = self.observations[(self.agt_x, self.agt_y)]
         # obs *= obs
-        obs = np.array([obs])
+        # obs = np.array([obs])
+        obs = np.array([100-self.agt_x, 100-self.agt_y])
 
         return obs, 0, 0, None  # reset on reward
 
@@ -249,7 +250,7 @@ class Visualizing2DWorld(Twisted2DWorld):
             self.all_visited_log.append(self.step_no)
             self.last_all_visited = self.heatmap.copy()
             for coords in rewards:
-                self.last_all_visited[coords] += 1     # THe coords of the reward are never visited
+                self.last_all_visited[coords] += 1     # The coords of the reward are never visited
 
         ret = super().step(action)
 
@@ -265,10 +266,11 @@ class Visualizing2DWorld(Twisted2DWorld):
         vis.grid(True)
 
         # Draw walls
-        for y in range(self.height):
-            for x in range(self.width):
-                if self.world_map[y][x] == '#':
-                    vis.scatter(x, y, c='black', marker='s')
+        plt.imshow(np.array(self.world_map))
+        # for y in range(self.height):
+        #     for x in range(self.width):
+        #         if self.world_map[y][x] == 1:
+        #             vis.scatter(x, y, c='black', marker='s')
 
         # Draw rewards
         for coords in rewards:

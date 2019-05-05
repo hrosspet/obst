@@ -6,14 +6,15 @@ from obst.agent import ExplorationAgent
 Vizualizing2DWorld_config = {
    'constructor': Visualizing2DWorld,
    'ctor_params': {
-       'world_file': 'obst/twisted_worlds/twisted_03.txt'
+       'world_file': 'obst/twisted_worlds/twisted_04.txt'
    },
 
    'repr_model': VectorPreprocessModel,     # The model that processes this world's observation data
    'dims': {                                #
-       'obs_size': (1,),
-       'repr_size': 4,
-   }
+    #    'obs_size': (1,),
+        'obs_size': (2,),
+        'repr_size': 4,
+    }
 }
 
 # ObstTowerWorld_config = {
@@ -51,10 +52,10 @@ CONFIG = {
                 'lr': 1e-3,
             },
 
-            'tree_depth': 6,    # Depth of decision tree
+            'tree_depth': 4,    # Depth of decision tree
         }
     },
-    
+
     'TRAINING_STEPS': 100000,
     'TEST_STEPS': 100,
 
