@@ -14,7 +14,16 @@ from obst.r2_score import r2_score
 # The train_model contains the shared layers so that we can train these shared layers with the model. It works on observations.
 # The use_model only contains the layers made create_layers and is used for the predicting. (We make predictions from the inner representation, not straight from observations)
 
-class Submodel(ABC):
+class HasWeights(ABC):
+    @abstractmethod
+    def load_weights_from_dir(self, dir):
+        pass
+
+    @abstractmethod
+    def save_weights_to_dir(self, dir):
+        pass
+
+class Submodel(HasWeights):
     # train_model: Model
     # use_model: Model
 
@@ -44,6 +53,7 @@ class Submodel(ABC):
     @abstractmethod
     def train(self, buffer, hparams) -> keras.callbacks.History:
         pass
+
 
 class SimModel(Submodel):
     def __init__(self, repr_layers, dims):
@@ -111,6 +121,11 @@ class SimModel(Submodel):
         logger.info("Training {}...".format(self.__class__.__name__))
         return self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size']), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
 
+    def load_weights_from_dir(self, dir):
+        self.use_model.load_weights(dir + '/sim_model.h5')
+    def save_weights_to_dir(self, dir):
+        self.use_model.save_weights(dir + '/sim_model.h5')
+
     def predict_sim(self, repr_a, repr_b):
         return self.use_model.predict([np.array([repr_a]), np.array([repr_b])])[0]
 
@@ -172,6 +187,11 @@ class WMModel(Submodel):
         logger.info("Training {}...".format(self.__class__.__name__))
         return self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size'], repr_model), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
 
+    def load_weights_from_dir(self, dir):
+        self.use_model.load_weights(dir + '/wm_model.h5')
+    def save_weights_to_dir(self, dir):
+        self.use_model.save_weights(dir + '/wm_model.h5')
+
     def predict_wm(self, start_repr, action): # -> representation of resulting obs
         return self.use_model.predict({'start_repr': np.array([start_repr]), 'action': np.array([action])})[0]
 
@@ -228,11 +248,16 @@ class RewardModel(Submodel):
             logger.info("Training {}...".format(self.__class__.__name__))
             return self.train_model.fit_generator(self.get_train_data_gen(buffer, hparams['batch_size']), steps_per_epoch=hparams['steps_pe'], epochs=hparams['epochs'])
 
+    def load_weights_from_dir(self, dir):
+        self.use_model.load_weights(dir + '/reward_model.h5')
+    def save_weights_to_dir(self, dir):
+        self.use_model.save_weights(dir + '/reward_model.h5')
+
     def predict_rew(self, repres): # -> float (reward)
         return self.use_model.predict(np.array([repres]))[0]
 
 # Models that take in an observation and generate intermediate layers
-class PreprocessModel(ABC):
+class PreprocessModel(HasWeights):
     def __init__(self, repr_layers, obs_size):
         # Create a simple model that does observation -> inner_representation
 
@@ -249,6 +274,10 @@ class PreprocessModel(ABC):
     def get_repr(self, observation):
         return self.model.predict(np.array([observation]))[0]
 
+    def load_weights_from_dir(self, dir):
+        self.model.load_weights(dir + '/{}.h5'.format(self.model.__class__.__name__))
+    def save_weights_to_dir(self, dir):
+        self.model.save_weights(dir + '/{}.h5'.format(self.model.__class__.__name__))
 
 class VectorPreprocessModel(PreprocessModel):
     def __init__(self, repr_layers, obs_size):

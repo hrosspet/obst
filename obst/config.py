@@ -32,6 +32,8 @@ Vizualizing2DWorld_config = {
 
 CONFIG = {
     'TIME_FORMAT': '%Y-%m-%d %H:%M:%S',
+    'WEIGHTS_DIR': 'weights/',
+
     'WORLD': Vizualizing2DWorld_config,
     # 'WORLD': Visualizing2DWorld_config,
     # 'WORLD': ObstTowerWorld_config,

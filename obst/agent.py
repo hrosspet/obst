@@ -11,7 +11,7 @@ from keras.models import Model
 from keras.layers import Input, Dense, Dropout, LSTM
 from keras import backend as K
 
-from obst.models import PreprocessModel, SimModel, WMModel, RewardModel
+from obst.models import PreprocessModel, SimModel, WMModel, RewardModel, HasWeights
 
 class AgentMode(Enum):
     RANDOM  = 0
@@ -30,7 +30,6 @@ class AbstractAgent(ABC):
     @abstractmethod
     def reset(self):
         pass
-
 
 class BufferedAgent(AbstractAgent):
     def __init__(self, buffer_size, training_period, n_actions):
@@ -80,7 +79,7 @@ class BufferedAgent(AbstractAgent):
 
 #
 
-class ExplorationAgent(BufferedAgent):
+class ExplorationAgent(BufferedAgent, HasWeights):
     def __init__(self, mode, repr_model, buffer_size, training_period, n_actions, tree_depth, dims, hparams):
         super().__init__(buffer_size, training_period, n_actions)
 
@@ -171,6 +170,20 @@ class ExplorationAgent(BufferedAgent):
             self.training_period = 100
 
             self.mode = AgentMode.EXPLORE     # Switch to exploration after the initial period of random movement
+
+    def load_weights_from_dir(self, dir):
+        self.sim_model.load_weights_from_dir(dir)
+        self.wm_model.load_weights_from_dir(dir)
+        self.reward_model.load_weights_from_dir(dir)
+
+        self.repr_model.load_weights_from_dir(dir)
+
+    def save_weights_to_dir(self, dir):
+        self.sim_model.save_weights_to_dir(dir)
+        self.wm_model.save_weights_to_dir(dir)
+        self.reward_model.save_weights_to_dir(dir)
+
+        self.repr_model.save_weights_to_dir(dir)
 
 class PotentialState:
     def __init__(self, repr, models, sim=None, reward=None, parent_repr=None):   # parent_repr used only when sim isn't set to predict similarity with previous state

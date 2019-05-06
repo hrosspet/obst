@@ -1,7 +1,8 @@
-import sys
+import sys, os
 import fire
-import pdb, traceback, sys
+import pdb, traceback
 
+from obst.models import HasWeights
 from obst.logs import generate_run_id, prepare_logging
 from obst.eval import Eval
 from obst.config import CONFIG
@@ -27,6 +28,12 @@ def main(verbosity='INFO', loglevel='DEBUG', gitdir='.git'):
         logger.info("######### STARTING #########")
         logger.info('run_id: %s', RUN_ID)
 
+        if 'WEIGHTS_DIR' in CONFIG:
+            weights_dir = CONFIG['WEIGHTS_DIR']
+            if os.path.isdir(weights_dir):                                      # If the weights dir doesn't exist yet, nothing will be loaded but it'll be created when saving.
+                logger.info('Loading weights from {}.'.format(weights_dir))
+                agent.load_weights_from_dir(weights_dir)
+
         print('evaluation.train():', evaluation.train())
         # print('evaluation.test():', evaluation.test())
     except KeyboardInterrupt:
@@ -39,8 +46,19 @@ def main(verbosity='INFO', loglevel='DEBUG', gitdir='.git'):
         traceback.print_exc()
         pdb.post_mortem(tb)
     finally:
-        if world.__class__.__name__ == 'ObstTowerWorld':
-            world.env.close()
+        # Close the world
+        world.close()
+
+        # Save the weights if the agent supports it
+        if isinstance(agent, HasWeights):
+            if 'WEIGHTS_DIR' in CONFIG:
+                weights_dir = CONFIG['WEIGHTS_DIR']
+
+                if not os.path.isdir(weights_dir):  # Create the weights dir if it doesn't exist
+                    os.makedirs(weights_dir)
+
+                logger.info('Saving weights to {}.'.format(weights_dir))
+                agent.save_weights_to_dir(weights_dir)
 
     logger.info("######### FINISHED #########")
 

@@ -14,6 +14,9 @@ class ObstTowerWorld(World):
 
         self.env = ObstacleTowerEnv(path, retro=False, realtime_mode=True, worker_id=get_worker_id())
 
+    def close(self):
+        self.env.close()
+
     def step(self, action):
         def compose_act(action):
             # 0. Movement (No-Op/Forward/Back)

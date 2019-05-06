@@ -34,6 +34,9 @@ class World(ABC):
     def reset(self):
         self.__init__()
 
+    def close(self):
+        pass
+
 REWARD_IDX = 763
 
 class OneHot1DWorld(World):
