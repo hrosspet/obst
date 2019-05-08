@@ -7,14 +7,11 @@ from obst.logs import generate_run_id, prepare_logging
 from obst.eval import Eval
 from obst.config import CONFIG
 
-TRAINING_STEPS = CONFIG['TRAINING_STEPS']
-TEST_STEPS = CONFIG['TEST_STEPS']
-
 def main(verbosity='INFO', loglevel='DEBUG', gitdir='.git'):
     try:
         world = CONFIG['WORLD']['constructor'](**CONFIG['WORLD']['ctor_params'])
         agent = CONFIG['AGENT']['constructor'](dims=CONFIG['WORLD']['dims'], repr_model=CONFIG['WORLD']['repr_model'], **CONFIG['AGENT']['ctor_params'])
-        evaluation = Eval(world, agent, training_steps=TRAINING_STEPS, test_steps=TEST_STEPS, vis_steps=CONFIG['VISUALIZE_STEPS'])
+        evaluation = Eval(world, agent, CONFIG['INTERVALS'])
 
         run_name = '_'.join([world.__class__.__name__, agent.__class__.__name__])
         print('\nWorld:\t{}\nAgent:\t{}\n'.format(world.__class__.__name__, agent.__class__.__name__))
@@ -34,8 +31,7 @@ def main(verbosity='INFO', loglevel='DEBUG', gitdir='.git'):
                 logger.info('Loading weights from {}.'.format(weights_dir))
                 agent.load_weights_from_dir(weights_dir)
 
-        print('evaluation.train():', evaluation.train())
-        # print('evaluation.test():', evaluation.test())
+        evaluation.eval(CONFIG['INTERVALS']['abort_at'])
     except KeyboardInterrupt:
         logger.warning("Terminated by user.")
     except SystemExit:

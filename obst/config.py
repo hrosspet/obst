@@ -58,8 +58,8 @@ CONFIG = {
         }
     },
 
-    'TRAINING_STEPS': 100000,
-    'TEST_STEPS': 100,
-
-    'VISUALIZE_STEPS': 100,    # Show a visualisatrion every n steps
+    'INTERVALS': {
+        'abort_at':  100000,  # Stop the program at this number of steps
+        'visualize': 100,     # Show a visualisatrion every n steps
+    }
 }
