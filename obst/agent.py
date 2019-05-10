@@ -220,8 +220,9 @@ class ExplorationAgent(BufferedAgent, HasWeights):
 
         traverse_tree_to_draw_sim(self.current_state, agt_x, agt_y)
 
+        plt.title('Predicted similarity')
         plt.imshow(img, origin='bottom', cmap='coolwarm', extent=[-border, map_width + border, -border, map_height + border])
-        plt.colorbar()
+        # plt.colorbar()
 
 class PotentialState:
     def __init__(self, repr, models, sim=None, reward=None, parent_repr=None):   # parent_repr used only when sim isn't set to predict similarity with previous state

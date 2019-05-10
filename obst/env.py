@@ -221,10 +221,8 @@ class Twisted2DWorld(World):
         self.world_map[self.agt_y][self.agt_x] = ' '
 
     def reset(self, test=False):
-        # self.agt_x = self.width  // 2 - 1
-        # self.agt_y = self.height // 2 - 1
-        self.agt_x = 0
-        self.agt_y = 0
+        self.agt_x = self.width  // 2 - 1
+        self.agt_y = self.height // 2 - 1
 
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -259,16 +257,11 @@ class Visualizing2DWorld(Twisted2DWorld):
             for coords in rewards:
                 self.last_all_visited[coords] += 1     # The coords of the reward are never visited
 
-        # Plot the agent's movements if it's time
-        if self.step_no % CONFIG['INTERVALS']['visualize'] == 0:
-            self.plot()
-            plt.savefig('logs/' + datetime.now().strftime("%Y%m%d%H%M%S") + '_steps_' + str(self.step_no - CONFIG['INTERVALS']['visualize']) + '_' + str(self.step_no) + '.png')
-            plt.close()
-
         # Log step number
-        if self.step_no % (CONFIG['INTERVALS']['visualize'] // 20) == 0:
+        if self.step_no % (CONFIG['AGENT']['ctor_params']['training_period'] // 20) == 0:
             logger.info("step {}".format(self.step_no))
 
+        # Actually change the agent's position
         ret = super().step(action)
 
         # Remember a reset
@@ -326,15 +319,3 @@ class Visualizing2DWorld(Twisted2DWorld):
         hmap = plt.imshow(self.heatmap, cmap='Greys', origin='lower', norm=Normalize(vmin=0, vmax=np.max(self.heatmap)))
         plt.title('heatmap')
         plt.colorbar(hmap)
-
-    def plot(self):
-        plt.figure(figsize=(16, 4.8))
-
-        plt.subplot(1, 4, 1)
-        self.plot_actions()
-        plt.subplot(1, 4, 2)
-        self.plot_resets()
-        plt.subplot(1, 4, 3)
-        self.plot_all_visited()
-        plt.subplot(1, 4, 4)
-        self.plot_heatmap()

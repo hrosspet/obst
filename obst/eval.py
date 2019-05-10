@@ -4,7 +4,7 @@ import logging
 import numpy as np
 
 from obst.config import CONFIG
-from obst.agent import ExplorationAgent
+from obst.env import Visualizing2DWorld
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +34,24 @@ class Eval():
             # Get agent's action based on the world observation
             action = self.agent.behave(observation, reward)
 
-            if isinstance(self.agent, ExplorationAgent) and step % CONFIG['INTERVALS']['visualize_sim'] == 0:
-                plt.title('Step {} sim'.format(step))
+            if isinstance(self.world, Visualizing2DWorld) and step % CONFIG['INTERVALS']['visualize'] == 0:
+                plt.figure(figsize=(15, 10))
+
+                plt.subplot(2, 3, 2)
+                self.world.plot_map()
+                self.world.plot_actions()
+                plt.subplot(2, 3, 4)
+                self.world.plot_resets()
+                plt.subplot(2, 3, 5)
+                self.world.plot_all_visited()
+                plt.subplot(2, 3, 1)
+                self.world.plot_heatmap()
+
+                plt.subplot(2, 3, 3)
                 plt.imshow(np.array(self.world.world_map), cmap='Greys')
                 self.agent.plot_sim_map(self.world.width, self.world.height, self.world.agt_x, self.world.agt_y)
-                plt.savefig('logs/{}_step_{}_sim.png'.format(datetime.now().strftime("%Y%m%d%H%M%S"), str(step)))
+
+                plt.savefig('logs/' + datetime.now().strftime("%Y%m%d%H%M%S") + '_steps_' + str(step - CONFIG['INTERVALS']['visualize']) + '_' + str(step) + '.png')
                 plt.close()
 
             if done:
