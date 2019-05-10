@@ -3,6 +3,9 @@ from datetime import datetime
 import logging
 import numpy as np
 
+from obst.config import CONFIG
+from obst.agent import ExplorationAgent
+
 logger = logging.getLogger(__name__)
 
 class Eval():
@@ -28,18 +31,15 @@ class Eval():
             # get world's reaction
             observation, reward, done, _ = self.world.step(action)
 
-            # Plot the agent's movements if it's time
-            if self.world.__class__.__name__ == 'Visualizing2DWorld' and step % self.intervals['visualize'] == 0:
-                plt.figure(figsize=(16, 4.8))
-                self.world.plot()
-                plt.savefig('logs/' + datetime.now().strftime("%Y%m%d%H%M%S") + '_steps_' + str(step - self.intervals['visualize']) + '_' + str(step) + '.png')
-                plt.close()
-
-            if step % (self.intervals['visualize'] // 20) == 0:
-                logger.info("step {}".format(step))
-
             # Get agent's action based on the world observation
             action = self.agent.behave(observation, reward)
+
+            if isinstance(self.agent, ExplorationAgent) and step % CONFIG['INTERVALS']['visualize_sim'] == 0:
+                plt.title('Step {} sim'.format(step))
+                plt.imshow(np.array(self.world.world_map), cmap='Greys')
+                self.agent.plot_sim_map(self.world.width, self.world.height, self.world.agt_x, self.world.agt_y)
+                plt.savefig('logs/{}_step_{}_sim.png'.format(datetime.now().strftime("%Y%m%d%H%M%S"), str(step)))
+                plt.close()
 
             if done:
                 logger.debug('reset')

@@ -138,8 +138,8 @@ class My2DWorld(World):
         return obs, (1 if reward else 0), reward, None  # reset on reward
 
     def reset(self, test=False):
-        self.agt_x = self.width  // 2
-        self.agt_y = self.height // 2
+        self.agt_x = self.width  // 2 - 1
+        self.agt_y = self.height // 2 - 1
 
 
 class Twisted2DWorld(World):
@@ -221,8 +221,10 @@ class Twisted2DWorld(World):
         self.world_map[self.agt_y][self.agt_x] = ' '
 
     def reset(self, test=False):
-        self.agt_x = self.width  // 2 - 1
-        self.agt_y = self.height // 2 - 1
+        # self.agt_x = self.width  // 2 - 1
+        # self.agt_y = self.height // 2 - 1
+        self.agt_x = 0
+        self.agt_y = 0
 
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -241,6 +243,8 @@ class Visualizing2DWorld(Twisted2DWorld):
         self.reset_log = []  # Log every time the world resets
 
     def step(self, action):
+        from config import CONFIG
+
         self.step_no += 1
 
         # Save current coordinates
@@ -255,29 +259,40 @@ class Visualizing2DWorld(Twisted2DWorld):
             for coords in rewards:
                 self.last_all_visited[coords] += 1     # The coords of the reward are never visited
 
+        # Plot the agent's movements if it's time
+        if self.step_no % CONFIG['INTERVALS']['visualize'] == 0:
+            self.plot()
+            plt.savefig('logs/' + datetime.now().strftime("%Y%m%d%H%M%S") + '_steps_' + str(self.step_no - CONFIG['INTERVALS']['visualize']) + '_' + str(self.step_no) + '.png')
+            plt.close()
+
+        # Log step number
+        if self.step_no % (CONFIG['INTERVALS']['visualize'] // 20) == 0:
+            logger.info("step {}".format(self.step_no))
+
         ret = super().step(action)
 
+        # Remember a reset
         if ret[2] == True:
             self.reset_log.append(self.step_no)
 
         return ret
 
-    def plot_actions(self):
-        vis = plt.subplot(1, 4, 1)    # Visualization
-
-        vis.axis((0, self.width - 1, 0, self.height - 1))
-        vis.grid(True)
+    def plot_map(self):
+        plt.axis((0, self.width - 1, 0, self.height - 1))
 
         # Draw walls
-        plt.imshow(np.array(self.world_map))
+        plt.imshow(np.array(self.world_map), cmap='Greys')
         # for y in range(self.height):
         #     for x in range(self.width):
         #         if self.world_map[y][x] == 1:
-        #             vis.scatter(x, y, c='black', marker='s')
+        #             plt.scatter(x, y, c='black', marker='s')
 
         # Draw rewards
         for coords in rewards:
-            vis.scatter(*coords, c='green')
+            plt.scatter(*coords, c='green')
+
+    def plot_actions(self):
+        plt.axis((0, self.width - 1, 0, self.height - 1))
 
         # Draw steps
         for i in range(len(self.pos_history) - 1):
@@ -286,29 +301,25 @@ class Visualizing2DWorld(Twisted2DWorld):
             x_old, y_old = self.pos_history[i - 1]
             x_new, y_new = self.pos_history[i]
 
-            vis.plot([x_old, x_new], [y_old, y_new], color=(pct, 0, 1-pct))
+            plt.plot([x_old, x_new], [y_old, y_new], color=(pct, 0, 1-pct))
 
         self.pos_history.clear()
 
     def plot_resets(self):
         diffs = [s2 - s1 for s1, s2 in zip(self.reset_log[:-1], self.reset_log[1:])]
 
-        grph = plt.subplot(1, 4, 2)
         plt.xlim(0, len(diffs))
-        grph.plot(range(len(diffs)), diffs, c='blue')
+        plt.plot(range(len(diffs)), diffs, c='blue')
         plt.title('steps between restarts')
 
     def plot_all_visited(self):
         diffs = [s2 - s1 for s1, s2 in zip(self.all_visited_log[:-1], self.all_visited_log[1:])]
 
-        grph = plt.subplot(1, 4, 3)
         plt.xlim(0, len(diffs))
-        grph.plot(range(len(diffs)), diffs, c='blue')
+        plt.plot(range(len(diffs)), diffs, c='blue')
         plt.title('steps between all fields being visited')
 
     def plot_heatmap(self):
-        plt.subplot(1, 4, 4)
-
         # htmp = self.heatmap.copy()
         # htmp /= np.max(htmp)        # make all values between 0 and 1
 
@@ -317,7 +328,13 @@ class Visualizing2DWorld(Twisted2DWorld):
         plt.colorbar(hmap)
 
     def plot(self):
+        plt.figure(figsize=(16, 4.8))
+
+        plt.subplot(1, 4, 1)
         self.plot_actions()
+        plt.subplot(1, 4, 2)
         self.plot_resets()
+        plt.subplot(1, 4, 3)
         self.plot_all_visited()
+        plt.subplot(1, 4, 4)
         self.plot_heatmap()

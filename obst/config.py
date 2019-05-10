@@ -59,7 +59,8 @@ CONFIG = {
     },
 
     'INTERVALS': {
-        'abort_at':  100000,  # Stop the program at this number of steps
-        'visualize': 100,     # Show a visualisatrion every n steps
+        'abort_at': 100000,  # Stop the program at this number of steps
+        'visualize': 100,    # Show a visualisatrion every n steps
+        'visualize_sim': 10,
     }
 }
