@@ -1,28 +1,65 @@
-from obst.env import OneHot1DWorld
-from obst.agent import RandomBufferedKerasAgent
+from obst.env import OneHot1DWorld, OneHot1DCyclicWorld, My2DWorld, Visualizing2DWorld, Twisted2DWorld
+from obst.models import VectorPreprocessModel, ImagePreprocessModel
+# from obst.unityenv import ObstTowerWorld
+from obst.agent import ExplorationAgent
+
+Vizualizing2DWorld_config = {
+   'constructor': Visualizing2DWorld,
+   'ctor_params': {
+       'world_file': 'obst/twisted_worlds/twisted_04.txt'
+   },
+
+   'repr_model': VectorPreprocessModel,     # The model that processes this world's observation data
+   'dims': {                                #
+    #    'obs_size': (1,),
+        'obs_size': (2,),
+        'repr_size': 4,
+    }
+}
+
+# ObstTowerWorld_config = {
+#     'constructor': ObstTowerWorld,
+#     'ctor_params': {
+#         'path': '/opt/ObstacleTower/obstacletower.x86_64'
+#     },
+#
+#     'repr_model': ImagePreprocessModel,
+#     'dims': {
+#         'obs_size': (168, 168, 3),
+#         'repr_size': 16,
+#     }
+# }
 
 CONFIG = {
     'TIME_FORMAT': '%Y-%m-%d %H:%M:%S',
-    'WORLD': {
-        'CONSTRUCTOR': OneHot1DWorld,
-        'PARAMS': {
-            'size': 1000,
-        }
-    },
+    'WEIGHTS_DIR': 'weights/',
+
+    'WORLD': Vizualizing2DWorld_config,
+    # 'WORLD': Visualizing2DWorld_config,
+    # 'WORLD': ObstTowerWorld_config,
     'AGENT': {
-        'CONSTRUCTOR': RandomBufferedKerasAgent,
-        'PARAMS': {
+        'constructor': ExplorationAgent,
+        'ctor_params': {
+            'mode': 'EXPLORE',  # EXPLORE/EXPLOIT
+
+            'training_period': 100,
             'buffer_size': 10000,
-            'training_period': 10000,
-            'n_actions': 2,
-            'input_dim': 1000,
-            'batch_size': 32,
-            'steps_per_epoch': 1000,
-            'epochs': 2,
-            'lr': 1e-3,
-            'n_layers': 2
+            'n_actions': 4,
+
+            'hparams': {    # hyperparameters
+                'steps_pe': 1000,
+                'epochs': 2,
+                'batch_size': 32,
+
+                'lr': 1e-3,
+            },
+
+            'tree_depth': 4,    # Depth of decision tree
         }
     },
-    'TRAINING_STEPS': 10000,
-    'TEST_STEPS': 100
+
+    'INTERVALS': {
+        'abort_at':  100000,  # Stop the program at this number of steps
+        'visualize': 100,     # Show a visualisatrion every n steps
+    }
 }
